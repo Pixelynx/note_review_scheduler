@@ -152,26 +152,48 @@ def add_or_update_note(
         raise DatabaseError(f"Failed to add/update note {file_path}: {e}") from e
 
 
-def get_notes_never_sent(db_path: Path = DATABASE_PATH) -> list[Note]:
+def get_notes_never_sent(db_path: Path = DATABASE_PATH, limit: int | None = None) -> list[Note]:
     """Return notes that have never been sent via email.
     
     Args:
         db_path: Path to the SQLite database file.
+        limit: Maximum number of notes to return. If None, returns all notes.
+               Useful for processing notes in batches to avoid overwhelming emails.
         
     Returns:
         List of Note objects that have never been sent, ordered by creation date.
+        When limit is specified, returns at most 'limit' notes.
         
     Raises:
         DatabaseError: If the database query fails.
+        ValueError: If limit is not a positive integer when provided.
+        
+    Examples:
+        >>> # Get all notes never sent
+        >>> notes = get_notes_never_sent()
+        
+        >>> # Get up to 5 notes for batch processing
+        >>> notes = get_notes_never_sent(limit=5)
+        
+        >>> # Custom database path with limit
+        >>> notes = get_notes_never_sent(Path("custom.db"), limit=10)
     """
+    # Parameter validation
+    if limit is not None and limit <= 0:
+        raise ValueError("Limit must be positive when provided")
+    
     try:
         with get_db_connection(db_path) as db_connection:
-            rows: list[sqlite3.Row] = db_connection.execute(
-                """SELECT n.* FROM notes n
-                   LEFT JOIN send_history sh ON n.id = sh.note_id
-                   WHERE sh.note_id IS NULL
-                   ORDER BY n.created_at ASC"""
-            ).fetchall()
+            base_query: str = """SELECT n.* FROM notes n
+                                LEFT JOIN send_history sh ON n.id = sh.note_id
+                                WHERE sh.note_id IS NULL
+                                ORDER BY n.created_at ASC"""
+            
+            rows: list[sqlite3.Row]
+            if limit is not None:
+                rows = db_connection.execute(base_query + " LIMIT ?", (limit,)).fetchall()
+            else:
+                rows = db_connection.execute(base_query).fetchall()
             
             notes: list[Note] = [
                 Note(
@@ -185,7 +207,10 @@ def get_notes_never_sent(db_path: Path = DATABASE_PATH) -> list[Note]:
                 for row in rows
             ]
             
-            logger.info(f"Found {len(notes)} notes never sent")
+            if limit is not None:
+                logger.info(f"Found {len(notes)} notes never sent (limited to {limit} results)")
+            else:
+                logger.info(f"Found {len(notes)} notes never sent")
             return notes
             
     except Exception as e:
