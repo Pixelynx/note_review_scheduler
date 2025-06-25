@@ -2,6 +2,14 @@
 
 ### [Unreleased]
 
+### [2025-24-06]
+#### Added
+- **Database Operations**: Added `limit` parameter to `get_notes_never_sent()` function
+  - Enables batch processing of notes to prevent overwhelming email sends
+  - Maintains backward compatibility with optional parameter `limit: int | None = None`
+  - Includes comprehensive input validation and enhanced logging
+  - Added detailed documentation with usage examples
+
 ### [2025-22-06]
 #### Added
 - **Database Foundation**: Created SQLite database schema and operations

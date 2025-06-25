@@ -75,7 +75,7 @@ def test_database_operations() -> None:
         
         # Test 2: Create test note files
         logger.info("\nTEST 2: Creating test note files")
-        for i in range(3):
+        for i in range(6):  # Create 6 notes
             content: str = f"This is test note {i+1}\nContent for testing purposes."
             note_file: Path = create_test_note_file(content)
             note_files.append(note_file)
@@ -118,16 +118,49 @@ def test_database_operations() -> None:
         )
         logger.info(f"SUCCESS: Recorded email send ID {send_id}")
         
-        # Test 6: Get notes never sent (should be 2 now)
+        # Test 6: Get notes never sent (should be 5 now)
         logger.info("\nTEST 6: Getting notes never sent (after email)")
         never_sent_after: list[Note] = get_notes_never_sent(test_db_path)
-        assert len(never_sent_after) == 2, f"Expected 2 notes, got {len(never_sent_after)}"
+        assert len(never_sent_after) == 5, f"Expected 5 notes, got {len(never_sent_after)}"
         logger.info(f"SUCCESS: Found {len(never_sent_after)} notes never sent")
+        
+        # Test 6.1: Test limit parameter functionality
+        logger.info("\nTEST 6.1: Testing limit parameter (limit=3)")
+        limited_never_sent: list[Note] = get_notes_never_sent(test_db_path, limit=3)
+        assert len(limited_never_sent) == 3, f"Expected exactly 3 notes with limit=3, got {len(limited_never_sent)}"
+        assert len(limited_never_sent) < len(never_sent_after), "Limited results should be less than total available"
+        logger.info(f"SUCCESS: Limit=3 returned exactly {len(limited_never_sent)} notes (out of {len(never_sent_after)} available)")
+        
+        # Test 6.2: Test limit larger than available notes
+        logger.info("\nTEST 6.2: Testing limit larger than available notes (limit=10)")
+        large_limit_notes: list[Note] = get_notes_never_sent(test_db_path, limit=10)
+        assert len(large_limit_notes) == len(never_sent_after), f"Should return all available notes when limit > available"
+        logger.info(f"SUCCESS: Limit=10 returned {len(large_limit_notes)} notes (all available)")
+        
+        # Test 6.3: Test limit parameter error handling
+        logger.info("\nTEST 6.3: Testing limit parameter error handling")
+        try:
+            get_notes_never_sent(test_db_path, limit=0)
+            assert False, "Should have raised ValueError for limit=0"
+        except ValueError as e:
+            logger.info(f"SUCCESS: Correctly caught error for limit=0: {e}")
+        
+        try:
+            get_notes_never_sent(test_db_path, limit=-1)
+            assert False, "Should have raised ValueError for negative limit"
+        except ValueError as e:
+            logger.info(f"SUCCESS: Correctly caught error for negative limit: {e}")
+
+        # Test 6.4: Test limit=1 (edge case)
+        logger.info("\nTEST 6.4: Testing limit=1 (edge case)")
+        single_note: list[Note] = get_notes_never_sent(test_db_path, limit=1)
+        assert len(single_note) == 1, f"Expected exactly 1 note with limit=1, got {len(single_note)}"
+        logger.info(f"SUCCESS: Limit=1 returned exactly {len(single_note)} note")
         
         # Test 7: Get notes not sent recently
         logger.info("\nTEST 7: Getting notes not sent recently")
         not_sent_recently: list[Note] = get_notes_not_sent_recently(1, test_db_path)  # 1 day
-        assert len(not_sent_recently) == 2, f"Expected 2 notes, got {len(not_sent_recently)}"
+        assert len(not_sent_recently) == 5, f"Expected 5 notes, got {len(not_sent_recently)}"
         logger.info(f"SUCCESS: Found {len(not_sent_recently)} notes not sent in last 1 day")
         
         # Test 8: Test with older send date
@@ -139,7 +172,7 @@ def test_database_operations() -> None:
         logger.info(f"SUCCESS: Recorded past email send ID {old_send_id}")
         
         not_sent_recently_1day: list[Note] = get_notes_not_sent_recently(1, test_db_path)
-        assert len(not_sent_recently_1day) == 2, f"Expected 2 notes, got {len(not_sent_recently_1day)}"
+        assert len(not_sent_recently_1day) == 5, f"Expected 5 notes, got {len(not_sent_recently_1day)}"
         logger.info(f"SUCCESS: Found {len(not_sent_recently_1day)} notes not sent in last 1 day (after old send)")
         
         logger.info("\nSUCCESS: All database tests passed successfully!")
