@@ -25,6 +25,7 @@ config.yml
 logs/
 
 # IDE/Editor files
+.cursor
 .vscode/
 .idea/
 *.swp

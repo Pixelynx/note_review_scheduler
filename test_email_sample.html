@@ -1,0 +1,364 @@
+
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Critical Notes Review - June 29 (4 notes) - Work, Learning &amp; 2 more</title>
+            <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .email-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .email-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .email-title {
+            margin: 0 0 15px 0;
+            font-size: 28px;
+            font-weight: 700;
+        }
+        
+        .email-meta {
+            opacity: 0.9;
+        }
+        
+        .date {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .stat {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        
+        .toc {
+            background: #f8f9fa;
+            margin: 0;
+            padding: 25px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .toc h2 {
+            margin-top: 0;
+            color: #495057;
+            font-size: 20px;
+        }
+        
+        .toc ul {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .toc li {
+            padding: 8px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .toc a {
+            color: #007bff;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        
+        .email-content {
+            padding: 30px;
+        }
+        
+        .note-group {
+            margin-bottom: 40px;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        
+        .importance-critical {
+            background: #fff5f5;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .importance-high {
+            background: #fff8e1;
+            border-left: 4px solid #ff9800;
+        }
+        
+        .importance-medium {
+            background: #f3e5f5;
+            border-left: 4px solid #9c27b0;
+        }
+        
+        .importance-low {
+            background: #f5f5f5;
+            border-left: 4px solid #6c757d;
+        }
+        
+        .group-header {
+            margin-top: 0;
+            color: #495057;
+            font-size: 24px;
+            border-bottom: 2px solid #dee2e6;
+            padding-bottom: 10px;
+        }
+        
+        .note {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .note-header {
+            margin-bottom: 15px;
+        }
+        
+        .note-title {
+            margin: 0 0 8px 0;
+            color: #343a40;
+            font-size: 18px;
+        }
+        
+        .note-metadata {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            color: #6c757d;
+            font-size: 14px;
+        }
+        
+        .note-content {
+            line-height: 1.7;
+        }
+        
+        .note-content h1, .note-content h2, .note-content h3, .note-content h4 {
+            color: #495057;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        
+        .note-content code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 13px;
+        }
+        
+        .note-content pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            border-left: 3px solid #007bff;
+        }
+        
+        .note-content ul, .note-content ol {
+            padding-left: 25px;
+        }
+        
+        .note-content a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        
+        .note-content a:hover {
+            text-decoration: underline;
+        }
+        
+        .email-footer {
+            background: #f8f9fa;
+            padding: 25px;
+            text-align: center;
+            color: #6c757d;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .importance-summary {
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        
+        .note-error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #f5c6cb;
+        }
+        
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            
+            .email-header {
+                padding: 20px;
+            }
+            
+            .email-title {
+                font-size: 22px;
+            }
+            
+            .stats {
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .toc, .email-content {
+                padding: 20px;
+            }
+            
+            .note {
+                padding: 15px;
+            }
+        }
+        </style>
+        </head>
+        <body>
+            <div class="email-container">
+                <header class="email-header">
+                    <h1 class="email-title">Critical Notes Review - June 29 (4 notes) - Work, Learning &amp; 2 more</h1>
+                    <div class="email-meta">
+                        <p class="date">Sunday, June 29, 2025</p>
+                        <div class="stats">
+                            <span class="stat">357 words</span>
+                            <span class="stat">~1 min read</span>
+                            <span class="stat">Avg score: 61.4</span>
+                        </div>
+                    </div>
+                </header>
+                
+                <div class="toc">
+<h2>Table of Contents</h2>
+<ul>
+  <li><a href="#group-1">[CRITICAL] Work (1 notes)</a></li>
+  <li><a href="#group-2">[MEDIUM] Learning (1 notes)</a></li>
+  <li><a href="#group-3">[MEDIUM] Personal (1 notes)</a></li>
+  <li><a href="#group-4">[MEDIUM] Ideas (1 notes)</a></li>
+</ul>
+</div>
+
+
+                
+                <main class="email-content">
+                    <div class="note-group importance-critical" id="group-1">
+<h2 class="group-header">[CRITICAL] Work</h2>
+<div class="note" id="note-1-1">
+
+            <div class="note-header">
+                <h3 class="note-title">tmp8zua929i_urgent_meeting.md</h3>
+                <div class="note-metadata">
+                    <span class="word-count">82 words</span>
+                    <span class="freshness">Today</span>
+                    <span class="score">Score: 75.3</span>
+                </div>
+            </div>
+            <div class="note-content">
+                <h1>URGENT: Client Meeting Tomorrow ## Critical Action Items - <strong>DEADLINE</strong>: Prepare presentation slides by 5 PM - Review Q3 financial reports - Contact John about budget approval ### Meeting...</h1>
+            </div>
+            
+</div>
+</div>
+
+<div class="note-group importance-medium" id="group-2">
+<h2 class="group-header">[MEDIUM] Learning</h2>
+<div class="note" id="note-2-1">
+
+            <div class="note-header">
+                <h3 class="note-title">tmp011p1ybb_learning_notes.md</h3>
+                <div class="note-metadata">
+                    <span class="word-count">95 words</span>
+                    <span class="freshness">4 days ago</span>
+                    <span class="score">Score: 61.8</span>
+                </div>
+            </div>
+            <div class="note-content">
+                <h1>Python Data Structures Study Notes ## Lists vs Tuples ### Lists (Mutable) - Dynamic arrays that can be modified - Use square brackets: <code>[1, 2, 3]</code> - Methods: append(),...</h1>
+            </div>
+            
+</div>
+</div>
+
+<div class="note-group importance-medium" id="group-3">
+<h2 class="group-header">[MEDIUM] Personal</h2>
+<div class="note" id="note-3-1">
+
+            <div class="note-header">
+                <h3 class="note-title">tmp9wvurgoq_personal_journal.txt</h3>
+                <div class="note-metadata">
+                    <span class="word-count">78 words</span>
+                    <span class="freshness">2 days ago</span>
+                    <span class="score">Score: 56.3</span>
+                </div>
+            </div>
+            <div class="note-content">
+                Today&#x27;s Personal Reflections Had a great day with family at the park. The weather was perfect and the kids loved playing on the swings. Planning to read that new book...
+            </div>
+            
+</div>
+</div>
+
+<div class="note-group importance-medium" id="group-4">
+<h2 class="group-header">[MEDIUM] Ideas</h2>
+<div class="note" id="note-4-1">
+
+            <div class="note-header">
+                <h3 class="note-title">tmpncce95nu_project_ideas.txt</h3>
+                <div class="note-metadata">
+                    <span class="word-count">102 words</span>
+                    <span class="freshness">6 days ago</span>
+                    <span class="score">Score: 52.1</span>
+                </div>
+            </div>
+            <div class="note-content">
+                Creative Project Ideas Brainstorm 1. Mobile App for Local Food Sharing - Connect neighbors to share excess food - Reduce food waste in communities - Social impact + sustainability 2....
+            </div>
+            
+</div>
+</div>
+
+
+                </main>
+                
+                <footer class="email-footer">
+                    <p>Generated by Note Review Scheduler</p>
+                    <div class="importance-summary">
+                        <strong>Importance Distribution:</strong>
+                        <span class="importance-item">[CRITICAL] CRITICAL: 1</span> | <span class="importance-item">[MEDIUM] MEDIUM: 3</span>
+                    </div>
+                </footer>
+            </div>
+        </body>
+        </html>
+        
