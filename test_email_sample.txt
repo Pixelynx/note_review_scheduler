@@ -21,7 +21,7 @@ TABLE OF CONTENTS
 1. [CRITICAL] WORK
 ========================
 
-1.1 tmp8zua929i_urgent_meeting.md
+1.1 tmp13d863p__urgent_meeting.md
 Words: 82 | Today | Score: 75.3
 --------------------------------------------------
 # URGENT: Client Meeting Tomorrow ## Critical Action Items - **DEADLINE**: Prepare presentation slides by 5 PM - Review Q3 financial reports - Contact John about budget approval ### Meeting...
@@ -31,7 +31,7 @@ Words: 82 | Today | Score: 75.3
 2. [MEDIUM] LEARNING
 ============================
 
-2.1 tmp011p1ybb_learning_notes.md
+2.1 tmpi1fwh03f_learning_notes.md
 Words: 95 | 4 days ago | Score: 61.8
 --------------------------------------------------
 # Python Data Structures Study Notes ## Lists vs Tuples ### Lists (Mutable) - Dynamic arrays that can be modified - Use square brackets: `[1, 2, 3]` - Methods: append(),...
@@ -41,7 +41,7 @@ Words: 95 | 4 days ago | Score: 61.8
 3. [MEDIUM] PERSONAL
 ============================
 
-3.1 tmp9wvurgoq_personal_journal.txt
+3.1 tmpppjphas3_personal_journal.txt
 Words: 78 | 2 days ago | Score: 56.3
 --------------------------------------------------
 Today's Personal Reflections Had a great day with family at the park. The weather was perfect and the kids loved playing on the swings. Planning to read that new book...
@@ -51,7 +51,7 @@ Today's Personal Reflections Had a great day with family at the park. The weathe
 4. [MEDIUM] IDEAS
 =========================
 
-4.1 tmpncce95nu_project_ideas.txt
+4.1 tmpmjghvhpy_project_ideas.txt
 Words: 102 | 6 days ago | Score: 52.1
 --------------------------------------------------
 Creative Project Ideas Brainstorm 1. Mobile App for Local Food Sharing - Connect neighbors to share excess food - Reduce food waste in communities - Social impact + sustainability 2....
