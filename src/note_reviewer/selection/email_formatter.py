@@ -274,11 +274,11 @@ class EmailFormatter:
         
         # Create subject based on content
         if critical_count > 0:
-            subject: str = f"🔴 Critical Notes Review - {date_str} ({note_count} notes)"
+            subject: str = f"Critical Notes Review - {date_str} ({note_count} notes)"
         elif high_count > 0:
-            subject: str = f"🟠 Important Notes Review - {date_str} ({note_count} notes)"
+            subject: str = f"Important Notes Review - {date_str} ({note_count} notes)"
         else:
-            subject: str = f"📝 Note Review - {date_str} ({note_count} notes)"
+            subject: str = f"Note Review - {date_str} ({note_count} notes)"
         
         # Add category info if diverse
         if len(groups) > 1:
@@ -301,16 +301,16 @@ class EmailFormatter:
         Returns:
             Tuple of (HTML TOC, plain text TOC).
         """
-        html_toc: str = '<div class="toc">\n<h2>📋 Table of Contents</h2>\n<ul>\n'
-        text_toc: str = "📋 TABLE OF CONTENTS\n" + "=" * 25 + "\n\n"
+        html_toc: str = '<div class="toc">\n<h2>Table of Contents</h2>\n<ul>\n'
+        text_toc: str = "TABLE OF CONTENTS\n" + "=" * 25 + "\n\n"
         
         for i, group in enumerate(groups, 1):
             # Importance indicator
             importance_icon: str = {
-                NoteImportance.CRITICAL: "🔴",
-                NoteImportance.HIGH: "🟠", 
-                NoteImportance.MEDIUM: "🟡",
-                NoteImportance.LOW: "⚪"
+                NoteImportance.CRITICAL: "[CRITICAL]",
+                NoteImportance.HIGH: "[HIGH]", 
+                NoteImportance.MEDIUM: "[MEDIUM]",
+                NoteImportance.LOW: "[LOW]"
             }[group.importance]
             
             group_anchor: str = f"group-{i}"
@@ -348,10 +348,10 @@ class EmailFormatter:
         for i, group in enumerate(groups, 1):
             # Group header
             importance_icon: str = {
-                NoteImportance.CRITICAL: "🔴",
-                NoteImportance.HIGH: "🟠",
-                NoteImportance.MEDIUM: "🟡", 
-                NoteImportance.LOW: "⚪"
+                NoteImportance.CRITICAL: "[CRITICAL]",
+                NoteImportance.HIGH: "[HIGH]",
+                NoteImportance.MEDIUM: "[MEDIUM]", 
+                NoteImportance.LOW: "[LOW]"
             }[group.importance]
             
             group_class: str = f"note-group importance-{group.importance.value.lower()}"
@@ -402,7 +402,7 @@ class EmailFormatter:
             # Build note HTML
             note_html: str = f'''
             <div class="note-header">
-                <h3 class="note-title">📄 {html.escape(file_name)}</h3>
+                <h3 class="note-title">{html.escape(file_name)}</h3>
                 <div class="note-metadata">
                     <span class="word-count">{word_count} words</span>
                     <span class="freshness">{freshness}</span>
@@ -418,7 +418,7 @@ class EmailFormatter:
             
         except Exception as e:
             logger.error(f"Error formatting note {note.file_path}: {e}")
-            return f'<div class="note-error">❌ Error loading note: {html.escape(str(e))}</div>'
+            return f'<div class="note-error">[ERROR] Error loading note: {html.escape(str(e))}</div>'
     
     def _format_notes_text(
         self, 
@@ -633,9 +633,9 @@ class EmailFormatter:
                     <div class="email-meta">
                         <p class="date">{current_date}</p>
                         <div class="stats">
-                            <span class="stat">📝 {stats['total_words']} words</span>
-                            <span class="stat">⏱️ ~{stats['estimated_read_time']} min read</span>
-                            <span class="stat">⭐ Avg score: {stats['avg_score']:.1f}</span>
+                            <span class="stat">{stats['total_words']} words</span>
+                            <span class="stat">~{stats['estimated_read_time']} min read</span>
+                            <span class="stat">Avg score: {stats['avg_score']:.1f}</span>
                         </div>
                     </div>
                 </header>
@@ -687,10 +687,10 @@ class EmailFormatter:
 
 {current_date}
 
-📊 SUMMARY:
-- 📝 {stats['total_words']} total words
-- ⏱️ ~{stats['estimated_read_time']} minute read
-- ⭐ Average score: {stats['avg_score']:.1f}
+SUMMARY:
+- {stats['total_words']} total words
+- ~{stats['estimated_read_time']} minute read
+- Average score: {stats['avg_score']:.1f}
 
 {toc_text}
 
@@ -965,14 +965,14 @@ IMPORTANCE DISTRIBUTION:
         
         parts: List[str] = []
         icons: Dict[str, str] = {
-            'CRITICAL': '🔴',
-            'HIGH': '🟠', 
-            'MEDIUM': '🟡',
-            'LOW': '⚪'
+            'CRITICAL': '[CRITICAL]',
+            'HIGH': '[HIGH]', 
+            'MEDIUM': '[MEDIUM]',
+            'LOW': '[LOW]'
         }
         
         for importance, count in summary.items():
-            icon: str = icons.get(importance, '⚫')
+            icon: str = icons.get(importance, '[UNKNOWN]')
             parts.append(f'<span class="importance-item">{icon} {importance}: {count}</span>')
         
         return ' | '.join(parts)

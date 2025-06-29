@@ -3,9 +3,13 @@
 
 from __future__ import annotations
 
+import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
+
+# Add project root to Python path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from loguru import logger
 

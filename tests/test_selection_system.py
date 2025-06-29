@@ -3,10 +3,14 @@
 
 from __future__ import annotations
 
+import sys
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List
+
+# Add project root to Python path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from loguru import logger
 from src.note_reviewer.database.models import Note
@@ -15,7 +19,6 @@ from src.note_reviewer.database.models import Note
 logger.remove()  # Remove default handler
 logger.add("test_selection_system.log", level="DEBUG")
 logger.add(lambda msg: print(msg, end=""), level="INFO")
-
 
 def create_test_notes() -> List[Path]:
     """Create diverse test note files for comprehensive testing.
@@ -338,7 +341,7 @@ def test_content_analyzer() -> None:
             if expected and metrics.importance_level != expected:
                 logger.warning(f"  Expected {expected.value}, got {metrics.importance_level.value}")
             else:
-                logger.success(f"  ✓ Importance correctly detected")
+                logger.success(f"  Importance correctly detected")
         
         # Test duplicate detection
         logger.info(f"\nTesting duplicate detection...")
@@ -362,7 +365,7 @@ def test_content_analyzer() -> None:
         logger.info(f"  Content changed: {changed}")
         logger.info(f"  New hash: {new_hash[:16]}...")
         
-        logger.success("✓ Content analyzer tests passed!")
+        logger.success("Content analyzer tests passed!")
         
     except Exception as e:
         logger.error(f"✗ Content analyzer test failed: {e}")
@@ -446,14 +449,14 @@ def test_selection_algorithm() -> None:
         # Empty note list
         empty_selection = selector.select_notes([], default_criteria)
         assert len(empty_selection) == 0, "Empty note list should return empty selection"
-        logger.success("✓ Empty list handling works")
+        logger.success("Empty list handling works")
         
         # Single note
         single_selection = selector.select_notes(test_notes[:1], default_criteria)
         assert len(single_selection) == 1, "Single note should return single selection"
-        logger.success("✓ Single note handling works")
+        logger.success("Single note handling works")
         
-        logger.success("✓ Selection algorithm tests passed!")
+        logger.success("Selection algorithm tests passed!")
         
     except Exception as e:
         logger.error(f"✗ Selection algorithm test failed: {e}")
@@ -545,7 +548,7 @@ def test_email_formatter() -> None:
         )
         
         assert "Table of Contents" not in no_toc_email.html_content, "Should not include TOC"
-        logger.success("✓ No-TOC formatting works")
+        logger.success("No-TOC formatting works")
         
         # Test edge cases
         logger.info("\nTesting edge cases...")
@@ -553,16 +556,16 @@ def test_email_formatter() -> None:
         # Single note
         single_note_email = formatter.format_email(selected_notes[:1])
         assert single_note_email.note_count == 1, "Should handle single note"
-        logger.success("✓ Single note formatting works")
+        logger.success("Single note formatting works")
         
         # Test empty list (should fail gracefully)
         try:
             formatter.format_email([])
             assert False, "Should raise error for empty note list"
         except ValueError:
-            logger.success("✓ Empty list handling works")
+            logger.success("Empty list handling works")
         
-        logger.success("✓ Email formatter tests passed!")
+        logger.success("Email formatter tests passed!")
         
     except Exception as e:
         logger.error(f"✗ Email formatter test failed: {e}")
@@ -666,7 +669,7 @@ def test_integration() -> None:
         final_html.write_text(email_content.html_content, encoding="utf-8")
         final_text.write_text(email_content.plain_text_content, encoding="utf-8")
         
-        logger.success("✓ Phase 3 integration test passed!")
+        logger.success("Phase 3 integration test passed!")
         logger.info(f"Final email samples saved:")
         logger.info(f"- {final_html}")
         logger.info(f"- {final_text}")
@@ -683,7 +686,7 @@ def test_integration() -> None:
 
 def main() -> None:
     """Run all Phase 3 selection system tests."""
-    logger.info("🚀 Starting Phase 3 Selection System Tests")
+    logger.info("Starting Phase 3 Selection System Tests")
     logger.info("=" * 50)
     
     try:
@@ -695,12 +698,12 @@ def main() -> None:
         # Test complete integration
         test_integration()
         
-        logger.success("\n🎉 ALL PHASE 3 TESTS PASSED SUCCESSFULLY!")
+        logger.success("\nALL PHASE 3 TESTS PASSED SUCCESSFULLY!")
         logger.info("=" * 50)
         logger.info("Phase 3 Smart Selection Logic is ready for production!")
         
     except Exception as e:
-        logger.error(f"\n💥 PHASE 3 TESTS FAILED: {e}")
+        logger.error(f"\nPHASE 3 TESTS FAILED: {e}")
         logger.error("Please review the errors above before proceeding.")
         raise
 
