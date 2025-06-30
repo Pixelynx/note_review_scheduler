@@ -61,31 +61,420 @@ def get_credential_manager() -> CredentialManager:
 
 
 @app.command()
-def setup() -> None:
-    """Setup the note review scheduler."""
+def setup(
+    force: bool = typer.Option(False, "--force", "-f", help="Reconfigure existing setup")
+) -> None:
+    """Setup the note review scheduler with interactive configuration."""
     rich_print("[bold blue]Note Review Scheduler Setup[/bold blue]")
-    rich_print("Setup wizard would run here")
+    
+    # Check if config already exists
+    if config_file.exists() and not force:
+        rich_print(f"[yellow]Configuration already exists at {config_file}[/yellow]")
+        rich_print("[yellow]Use --force to reconfigure or 'notes config --show' to view current settings.[/yellow]")
+        return
+    
+    rich_print("\n[green]This wizard will help you configure the note review scheduler.[/green]")
+    rich_print("[cyan]You'll need:[/cyan]")
+    rich_print("  • Gmail account with 2-factor authentication enabled")
+    rich_print("  - Gmail app password (not your regular password)")
+    rich_print("  - Directory containing your notes")
+    
+    if not typer.confirm("\nDo you want to continue?"):
+        rich_print("[yellow]Setup cancelled.[/yellow]")
+        return
+    
+    try:
+        # Get master password
+        rich_print("\n[bold]Security Setup[/bold]")
+        master_password = typer.prompt(
+            "Create a master password for encrypting your credentials",
+            hide_input=True
+        )
+        confirm_password = typer.prompt(
+            "Confirm master password",
+            hide_input=True
+        )
+        
+        if master_password != confirm_password:
+            rich_print("[red]Passwords don't match. Setup cancelled.[/red]")
+            raise typer.Exit(1)
+        
+        # Get Gmail credentials
+        rich_print("\n[bold]Gmail Configuration[/bold]")
+        rich_print("[cyan]Instructions for Gmail App Password:[/cyan]")
+        rich_print("1. Go to your Google Account settings")
+        rich_print("2. Navigate to Security → App passwords")
+        rich_print("3. Generate an app password for 'Mail'")
+        rich_print("4. Use that password below (not your regular Gmail password)")
+        
+        gmail_username = typer.prompt("\nGmail address")
+        if "@gmail.com" not in gmail_username.lower():
+            rich_print("[red]Please enter a valid Gmail address[/red]")
+            raise typer.Exit(1)
+        
+        gmail_app_password = typer.prompt(
+            "Gmail app password",
+            hide_input=True
+        )
+        
+        from_name = typer.prompt(
+            "Display name for emails",
+            default=gmail_username.split('@')[0].title()
+        )
+        
+        # Get recipient email
+        recipient_email = typer.prompt(
+            "Email address to send note reviews to",
+            default=gmail_username
+        )
+        
+        # Get notes directory
+        rich_print("\n[bold]Notes Configuration[/bold]")
+        notes_dir = typer.prompt("Path to your notes directory")
+        notes_path = Path(notes_dir).expanduser().resolve()
+        
+        if not notes_path.exists():
+            if typer.confirm(f"Directory {notes_path} doesn't exist. Create it?"):
+                notes_path.mkdir(parents=True, exist_ok=True)
+                rich_print(f"[green]Created directory: {notes_path}[/green]")
+            else:
+                rich_print("[yellow]Setup cancelled - notes directory required.[/yellow]")
+                raise typer.Exit(1)
+        
+        # Get schedule configuration
+        rich_print("\n[bold]Schedule Configuration[/bold]")
+        schedule_time = typer.prompt(
+            "Daily email time (HH:MM format)",
+            default="09:00"
+        )
+        
+        # Validate time format
+        try:
+            hour, minute = schedule_time.split(':')
+            hour_int, minute_int = int(hour), int(minute)
+            if not (0 <= hour_int <= 23 and 0 <= minute_int <= 59):
+                raise ValueError()
+        except ValueError:
+            rich_print("[red]Invalid time format. Please use HH:MM (24-hour format)[/red]")
+            raise typer.Exit(1)
+        
+        notes_per_email = typer.prompt(
+            "Maximum notes per email",
+            default=3,
+            type=int
+        )
+        
+        if notes_per_email <= 0:
+            rich_print("[red]Notes per email must be positive[/red]")
+            raise typer.Exit(1)
+        
+        # Show configuration summary
+        rich_print("\n[bold]Configuration Summary[/bold]")
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("Setting", style="cyan")
+        table.add_column("Value", style="green")
+        
+        table.add_row("Gmail Username", gmail_username)
+        table.add_row("From Name", from_name)
+        table.add_row("Recipient Email", recipient_email)
+        table.add_row("Notes Directory", str(notes_path))
+        table.add_row("Schedule Time", schedule_time)
+        table.add_row("Notes Per Email", str(notes_per_email))
+        
+        console.print(table)
+        
+        if not typer.confirm("\nSave this configuration?"):
+            rich_print("[yellow]Setup cancelled.[/yellow]")
+            return
+        
+        # Save configuration
+        rich_print("\n[yellow]Saving configuration...[/yellow]")
+        
+        # Create credential manager and save
+        from .security.credentials import CredentialManager
+        
+        manager = CredentialManager.setup_wizard(
+            config_file=config_file,
+            master_password=master_password,
+            gmail_username=gmail_username,
+            gmail_app_password=gmail_app_password,
+            recipient_email=recipient_email,
+            notes_directory=str(notes_path),
+            from_name=from_name
+        )
+        
+        # Update app config with schedule settings
+        from .security.credentials import AppConfig
+        email_creds, current_config = manager.load_credentials()
+        
+        updated_config = AppConfig(
+            notes_directory=str(notes_path),
+            recipient_email=recipient_email,
+            database_path=current_config.database_path,
+            schedule_time=schedule_time,
+            notes_per_email=notes_per_email,
+            email_template=current_config.email_template,
+            attach_files=current_config.attach_files,
+            log_level=current_config.log_level,
+            log_file=current_config.log_file
+        )
+        
+        manager.save_credentials(email_creds, updated_config)
+        
+        # Test the configuration
+        rich_print("\n[yellow]Testing email configuration...[/yellow]")
+        
+        from .email.service import EmailService, EmailConfig
+        
+        email_config = EmailConfig(
+            smtp_server="smtp.gmail.com",
+            smtp_port=587,
+            username=gmail_username,
+            password=gmail_app_password,
+            from_email=gmail_username,
+            from_name=from_name
+        )
+        
+        email_service = EmailService(email_config)
+        if email_service.test_connection():
+            rich_print("[green]Email configuration test successful![/green]")
+        else:
+            rich_print("[yellow]Email configuration test failed, but setup saved.[/yellow]")
+            rich_print("[yellow]  You may need to check your Gmail app password.[/yellow]")
+        
+        # Initialize database
+        rich_print("\n[yellow]Initializing database...[/yellow]")
+        from .database.operations import initialize_database
+        
+        db_path = Path(updated_config.database_path)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        initialize_database(db_path)
+        rich_print("[green]Database initialized successfully![/green]")
+        
+        # Run initial scan if notes exist
+        if any(notes_path.glob("*.md")):
+            if typer.confirm("\nRun initial notes scan?"):
+                rich_print("\n[yellow]Scanning notes directory...[/yellow]")
+                
+                scanner = FileScanner(extract_tags=True, extract_links=True)
+                results, stats = scanner.scan_directory(notes_path, recursive=True)
+                
+                # Update database with scan results
+                if results:
+                    from .database.operations import add_or_update_note
+                    for result in results:
+                        if result.is_valid:
+                            add_or_update_note(
+                                file_path=result.file_path,
+                                content_hash=result.content_hash,
+                                file_size=result.file_size,
+                                created_at=result.created_at,
+                                modified_at=result.modified_at,
+                                db_path=db_path
+                            )
+                
+                rich_print(f"[green]Scanned {stats.scanned_files} notes successfully![/green]")
+        
+        # Success message
+        rich_print("\n[bold green]Setup completed successfully![/bold green]")
+        rich_print("\n[cyan]Next steps:[/cyan]")
+        rich_print("  - notes scan          - Scan your notes directory")
+        rich_print("  - notes send --preview - Preview a note selection") 
+        rich_print("  - notes start         - Start the scheduler")
+        rich_print("  - notes config --show - View your configuration")
+        
+    except KeyboardInterrupt:
+        rich_print("\n[yellow]Setup cancelled by user.[/yellow]")
+        raise typer.Exit(1)
+    except Exception as e:
+        rich_print(f"\n[red]Setup failed: {e}[/red]")
+        raise typer.Exit(1)
 
 
 @app.command()
-def start() -> None:
+def start(
+    daemon: bool = typer.Option(False, "--daemon", "-d", help="Run as background daemon")
+) -> None:
     """Start the scheduler."""
-    rich_print("[bold blue]Starting Scheduler[/bold blue]")
-    rich_print("Scheduler would start here")
+    rich_print("[bold blue]Starting Note Review Scheduler[/bold blue]")
+    
+    # Check if config exists
+    if not config_file.exists():
+        rich_print("[red]Configuration not found. Please run 'notes setup' first.[/red]")
+        raise typer.Exit(1)
+    
+    try:
+        # Get credentials and initialize app
+        from .main import NoteReviewApplication
+        
+        global master_password
+        if not master_password:
+            master_password = typer.prompt("Enter master password", hide_input=True)
+        
+        app_instance = NoteReviewApplication(config_file)
+        
+        if master_password is None:
+            rich_print("[red]Master password is required[/red]")
+            raise typer.Exit(1)
+        
+        if not app_instance.initialize(master_password):
+            rich_print("[red]Failed to initialize application[/red]")
+            raise typer.Exit(1)
+        
+        if daemon:
+            rich_print("[yellow]Daemon mode not yet implemented. Starting in foreground...[/yellow]")
+        
+        rich_print("[green]Scheduler starting...[/green]")
+        rich_print("[cyan]Press Ctrl+C to stop[/cyan]")
+        
+        # Start the scheduler
+        success = app_instance.start_scheduler(daemon_mode=daemon)
+        
+        if success:
+            rich_print("[green]Scheduler started successfully[/green]")
+        else:
+            rich_print("[red]Failed to start scheduler[/red]")
+            raise typer.Exit(1)
+            
+    except KeyboardInterrupt:
+        rich_print("\n[yellow]Scheduler stopped by user[/yellow]")
+    except Exception as e:
+        rich_print(f"[red]Failed to start scheduler: {e}[/red]")
+        raise typer.Exit(1)
 
 
 @app.command()
 def status() -> None:
-    """Show system status."""
+    """Show system status and health information."""
     rich_print("[bold blue]System Status[/bold blue]")
-    rich_print("Status information would be shown here")
+    
+    # Check configuration
+    if not config_file.exists():
+        rich_print("[red]Configuration not found[/red]")
+        rich_print("  Run 'notes setup' to configure the system")
+        return
+    
+    try:
+        # Get credentials
+        global master_password
+        if not master_password:
+            master_password = typer.prompt("Enter master password", hide_input=True)
+        
+        if master_password is None:
+            rich_print("[red]Master password is required[/red]")
+            raise typer.Exit(1)
+        
+        credential_manager = CredentialManager(config_file, master_password)
+        email_creds, app_config = credential_manager.load_credentials()
+        
+        # Create status table
+        table = Table(title="System Status", show_header=True, header_style="bold magenta")
+        table.add_column("Component", style="cyan")
+        table.add_column("Status", style="green")
+        table.add_column("Details")
+        
+        # Configuration status
+        table.add_row("Configuration", "Loaded", f"Config file: {config_file}")
+        
+        # Notes directory status
+        notes_path = Path(app_config.notes_directory)
+        if notes_path.exists():
+            note_count = len(list(notes_path.glob("**/*.md"))) + len(list(notes_path.glob("**/*.txt")))
+            table.add_row("Notes Directory", "Available", f"{note_count} files found")
+        else:
+            table.add_row("Notes Directory", "Missing", f"Path: {notes_path}")
+        
+        # Database status
+        db_path = Path(app_config.database_path)
+        if db_path.exists():
+            from .database.operations import get_notes_never_sent
+            try:
+                notes = get_notes_never_sent(db_path)
+                table.add_row("Database", "Connected", f"{len(notes)} notes never sent")
+            except Exception as e:
+                table.add_row("Database", "Error", str(e))
+        else:
+            table.add_row("Database", "Missing", "Run 'notes scan' to initialize")
+        
+        # Email service status
+        try:
+            from .email.service import EmailService, EmailConfig
+            
+            email_config = EmailConfig(
+                smtp_server=email_creds.smtp_server,
+                smtp_port=email_creds.smtp_port,
+                username=email_creds.username,
+                password=email_creds.password,
+                from_email=email_creds.username,
+                from_name=email_creds.from_name
+            )
+            
+            email_service = EmailService(email_config)
+            if email_service.test_connection():
+                table.add_row("Email Service", "Connected", f"Gmail: {email_creds.username}")
+            else:
+                table.add_row("Email Service", "Failed", "Check Gmail credentials")
+                
+        except Exception as e:
+            table.add_row("Email Service", "Error", str(e))
+        
+        # Health check
+        try:
+            from .main import NoteReviewApplication
+            app_instance = NoteReviewApplication(config_file)
+            app_instance.initialize(master_password)
+            
+            health_status = app_instance.get_health_status()
+            if health_status.get('is_healthy', False):
+                cpu = health_status.get('cpu_percent', 0)
+                memory = health_status.get('memory_percent', 0)
+                table.add_row("System Health", "Healthy", f"CPU: {cpu:.1f}%, RAM: {memory:.1f}%")
+            else:
+                error_msg = health_status.get('error', 'Unknown error')
+                table.add_row("System Health", "Unhealthy", error_msg)
+                
+        except Exception as e:
+            table.add_row("System Health", "Warning", f"Health check failed: {e}")
+        
+        console.print(table)
+        
+        # Show recent activity summary
+        rich_print("\n[bold]Recent Activity[/bold]")
+        if db_path.exists():
+            try:
+                # Show recent notes that could be sent
+                from .database.operations import get_notes_not_sent_recently
+                recent_notes = get_notes_not_sent_recently(7, db_path)
+                
+                if recent_notes:
+                    rich_print(f"[green]{len(recent_notes)} notes available for sending[/green]")
+                    for note in recent_notes[:3]:  # Show first 3
+                        file_name = Path(note.file_path).name
+                        rich_print(f"  - {file_name}")
+                    if len(recent_notes) > 3:
+                        rich_print(f"  ... and {len(recent_notes) - 3} more")
+                else:
+                    rich_print("[yellow]No notes available for sending[/yellow]")
+                    
+            except Exception as e:
+                rich_print(f"[yellow]Could not load recent activity: {e}[/yellow]")
+        
+        # Quick actions
+        rich_print("\n[bold]Quick Actions[/bold]")
+        rich_print("  - notes scan          - Refresh notes database")
+        rich_print("  - notes send --preview - Preview next email")
+        rich_print("  - notes start         - Start scheduler")
+        
+    except Exception as e:
+        rich_print(f"[red]Failed to get status: {e}[/red]")
+        raise typer.Exit(1)
 
 
 @app.command()
 def stop() -> None:
     """Stop the running scheduler."""
     rich_print("[yellow]Stopping scheduler...[/yellow]")
-    rich_print("[green]✓ Scheduler stopped.[/green]")
+    rich_print("[green]Scheduler stopped.[/green]")
 
 
 @app.command()
@@ -145,13 +534,13 @@ def scan(
         if stats.formats_found:
             rich_print("\n[bold]File Formats Found:[/bold]")
             for format_name, count in stats.formats_found.items():
-                rich_print(f"  • {format_name}: {count} files")
+                rich_print(f"  - {format_name}: {count} files")
         
         # Update database if requested
         if update_db and results:
             rich_print(f"\n[yellow]Updating database with {len(results)} scan results...[/yellow]")
             # Implementation would add/update notes in database
-            rich_print("[green]✓ Database updated successfully.[/green]")
+            rich_print("[green]Database updated successfully.[/green]")
             
     except Exception as e:
         rich_print(f"[red]Scan failed: {e}[/red]")
@@ -211,9 +600,9 @@ def send(
         rich_print("\n[yellow]Generating email content...[/yellow]")
         
         if preview:
-            rich_print("[blue]✓ Email preview generated (not sent)[/blue]")
+            rich_print("[blue]Email preview generated (not sent)[/blue]")
         else:
-            rich_print("[green]✓ Email sent successfully![/green]")
+            rich_print("[green]Email sent successfully![/green]")
             
     except Exception as e:
         rich_print(f"[red]Failed to send email: {e}[/red]")
@@ -254,10 +643,10 @@ def stats(
         
         if detailed:
             rich_print("\n[bold]Detailed Analytics:[/bold]")
-            rich_print("  • Top categories: Technical (45%), Learning (30%), Personal (25%)")
-            rich_print("  • Average note age when sent: 12 days")
-            rich_print("  • Most common file format: Markdown (89%)")
-            rich_print("  • Peak sending time: 09:00 AM")
+            rich_print("  - Top categories: Technical (45%), Learning (30%), Personal (25%)")
+            rich_print("  - Average note age when sent: 12 days")
+            rich_print("  - Most common file format: Markdown (89%)")
+            rich_print("  - Peak sending time: 09:00 AM")
             
     except Exception as e:
         rich_print(f"[red]Failed to get statistics: {e}[/red]")
