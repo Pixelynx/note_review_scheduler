@@ -2,6 +2,22 @@
 
 ### [Unreleased]
 
+### [2025-07-05]
+#### Added
+- **Environment Variable Support**: Added `python-dotenv` dependency to enable loading `.env` files
+  - `pyproject.toml`: Added `python-dotenv>=1.0.0,<2.0.0` to project dependencies
+  - Enables local development with `.env` files for environment variable configuration
+
+#### Changed
+- **GitHub Credentials Setup Script**: Enhanced environment variable loading capabilities
+  - `scripts/setup_github_credentials.py`: Added automatic `.env` file loading support
+    - Automatically detects and loads `.env` file from project root if it exists
+    - Graceful fallback to system environment variables when `.env` file not found
+    - Clear user feedback about environment variable source (file vs system)
+    - Maintains backward compatibility with GitHub Actions environment variable setup
+
+#### Fixed
+
 ### [2025-06-30]
   **Main Application Architecture**:
     - Added critical master password type safety with proper None checks
