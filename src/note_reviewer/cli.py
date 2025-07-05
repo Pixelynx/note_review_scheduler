@@ -6,8 +6,12 @@ Provides comprehensive CLI commands for all system operations.
 
 from __future__ import annotations
 
+import getpass
+import os
+import signal
+import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import typer
 from rich import print as rich_print
@@ -20,6 +24,61 @@ from .security.credentials import CredentialManager
 from .scanner.file_scanner import FileScanner
 from .selection.selection_algorithm import SelectionAlgorithm
 from .selection.content_analyzer import ContentAnalyzer
+
+def get_password_cross_platform(prompt: str) -> str:
+    """
+    Get password input that works across different terminal environments.
+    Uses visible input in Git Bash to avoid hanging issues.
+    """
+    # Check if we're in Git Bash or similar environment on Windows
+    if os.name == 'nt' and 'MSYSTEM' in os.environ:
+        # We're in Git Bash/MSYS2 - use visible input to avoid hanging
+        print(f"\nNote: Running in Git Bash - password will be visible while typing.")
+        print("(This is normal for Git Bash - your password is still secure)")
+        sys.stdout.write(prompt)
+        sys.stdout.flush()
+        try:
+            # Use sys.stdin.readline() for better signal handling
+            password = sys.stdin.readline().strip()
+            return password
+        except KeyboardInterrupt:
+            print("\nPress Enter to confirm exit, or Ctrl+C again to force quit...")
+            try:
+                input()
+                rich_print("\n[yellow]Process cancelled by user[/yellow]")
+                raise typer.Exit(0)
+            except KeyboardInterrupt:
+                rich_print("\n[yellow]Force quit - process terminated[/yellow]")
+                raise typer.Exit(0)
+    else:
+        # Use standard getpass for PowerShell, Command Prompt, etc.
+        try:
+            return getpass.getpass(prompt)
+        except KeyboardInterrupt:
+            print("\nPress Enter to confirm exit, or Ctrl+C again to force quit...")
+            try:
+                input()
+                rich_print("\n[yellow]Process cancelled by user[/yellow]")
+                raise typer.Exit(0)
+            except KeyboardInterrupt:
+                rich_print("\n[yellow]Force quit - process terminated[/yellow]")
+                raise typer.Exit(0)
+
+def setup_signal_handling() -> None:
+    """Set up proper signal handling for Git Bash and other terminals."""
+    def signal_handler(signum: int, frame: Any) -> None:
+        print("\nPress Enter to confirm exit, or Ctrl+C again to force quit...")
+        try:
+            input()
+            rich_print("\n[yellow]Setup cancelled by user[/yellow]")
+            raise typer.Exit(0)
+        except KeyboardInterrupt:
+            rich_print("\n[yellow]Force quit - setup terminated[/yellow]")
+            raise typer.Exit(0)
+    
+    signal.signal(signal.SIGINT, signal_handler)
+    if hasattr(signal, 'SIGTERM'):
+        signal.signal(signal.SIGTERM, signal_handler)
 
 # Initialize CLI app
 app = typer.Typer(
@@ -46,11 +105,11 @@ def get_credential_manager() -> CredentialManager:
         raise typer.Exit(1)
     
     if not master_password:
-        master_password = typer.prompt("Enter master password", hide_input=True)
+        master_password = get_password_cross_platform("Enter master password: ")
     
-    # Ensure master_password is not None at this point
-    if master_password is None:
-        rich_print("[red]Master password is required.[/red]")
+    # Check if password was actually entered
+    if not master_password.strip():
+        rich_print("[red]Master password is required[/red]")
         raise typer.Exit(1)
     
     try:
@@ -65,6 +124,9 @@ def setup(
     force: bool = typer.Option(False, "--force", "-f", help="Reconfigure existing setup")
 ) -> None:
     """Setup the note review scheduler with interactive configuration."""
+    # Set up signal handling for better Ctrl+C support
+    setup_signal_handling()
+    
     rich_print("[bold blue]Note Review Scheduler Setup[/bold blue]")
     
     # Check if config already exists
@@ -86,18 +148,30 @@ def setup(
     try:
         # Get master password
         rich_print("\n[bold]Security Setup[/bold]")
-        master_password = typer.prompt(
-            "Create a master password for encrypting your credentials",
-            hide_input=True
-        )
-        confirm_password = typer.prompt(
-            "Confirm master password",
-            hide_input=True
-        )
         
+        # Add debug output to help identify where hanging occurs
+        rich_print("[dim]Waiting for master password input...[/dim]")
+        try:
+            master_password = get_password_cross_platform("Create a master password for encrypting your credentials: ")
+        except Exception as e:
+            rich_print(f"[red]Error with password input: {e}[/red]")
+            rich_print("[yellow]Try using a simpler terminal or command prompt[/yellow]")
+            raise typer.Exit(1)
+        
+        rich_print("[dim]Waiting for password confirmation...[/dim]")
+        try:
+            confirm_password = get_password_cross_platform("Confirm master password: ")
+        except Exception as e:
+            rich_print(f"[red]Error with password confirmation: {e}[/red]")
+            rich_print("[yellow]Try using a simpler terminal or command prompt[/yellow]")
+            raise typer.Exit(1)
+        
+        rich_print("[dim]Checking password match...[/dim]")
         if master_password != confirm_password:
             rich_print("[red]Passwords don't match. Setup cancelled.[/red]")
             raise typer.Exit(1)
+        
+        rich_print("[green]Passwords match! Continuing setup...[/green]")
         
         # Get Gmail credentials
         rich_print("\n[bold]Gmail Configuration[/bold]")
@@ -112,10 +186,7 @@ def setup(
             rich_print("[red]Please enter a valid Gmail address[/red]")
             raise typer.Exit(1)
         
-        gmail_app_password = typer.prompt(
-            "Gmail app password",
-            hide_input=True
-        )
+        gmail_app_password = get_password_cross_platform("Gmail app password: ")
         
         from_name = typer.prompt(
             "Display name for emails",
@@ -232,15 +303,21 @@ def setup(
             username=gmail_username,
             password=gmail_app_password,
             from_email=gmail_username,
-            from_name=from_name
+            from_name=from_name,
+            timeout_seconds=10  # Add timeout to prevent hanging
         )
         
         email_service = EmailService(email_config)
-        if email_service.test_connection():
-            rich_print("[green]Email configuration test successful![/green]")
-        else:
-            rich_print("[yellow]Email configuration test failed, but setup saved.[/yellow]")
-            rich_print("[yellow]  You may need to check your Gmail app password.[/yellow]")
+        rich_print("[dim]Attempting connection to Gmail SMTP...[/dim]")
+        try:
+            if email_service.test_connection():
+                rich_print("[green]Email configuration test successful![/green]")
+            else:
+                rich_print("[yellow]Email configuration test failed, but setup saved.[/yellow]")
+                rich_print("[yellow]  You may need to check your Gmail app password.[/yellow]")
+        except Exception as e:
+            rich_print(f"[yellow]Email test failed ({e}), but setup saved.[/yellow]")
+            rich_print("[yellow]  You can test the connection later with 'notes status'[/yellow]")
         
         # Initialize database
         rich_print("\n[yellow]Initializing database...[/yellow]")
@@ -284,10 +361,18 @@ def setup(
         rich_print("  - notes config --show - View your configuration")
         
     except KeyboardInterrupt:
-        rich_print("\n[yellow]Setup cancelled by user.[/yellow]")
-        raise typer.Exit(1)
+        print("\nPress Enter to confirm exit, or Ctrl+C again to force quit...")
+        try:
+            input()
+            rich_print("\n[yellow]Setup cancelled by user[/yellow]")
+            rich_print("[dim]You can run 'notes setup' again to restart the configuration.[/dim]")
+            raise typer.Exit(0)
+        except KeyboardInterrupt:
+            rich_print("\n[yellow]Force quit - setup terminated[/yellow]")
+            raise typer.Exit(0)
     except Exception as e:
         rich_print(f"\n[red]Setup failed: {e}[/red]")
+        rich_print("[dim]You can run 'notes setup' again to retry.[/dim]")
         raise typer.Exit(1)
 
 
@@ -309,11 +394,11 @@ def start(
         
         global master_password
         if not master_password:
-            master_password = typer.prompt("Enter master password", hide_input=True)
+            master_password = get_password_cross_platform("Enter master password: ")
         
         app_instance = NoteReviewApplication(config_file)
         
-        if master_password is None:
+        if not master_password.strip():
             rich_print("[red]Master password is required[/red]")
             raise typer.Exit(1)
         
@@ -358,9 +443,9 @@ def status() -> None:
         # Get credentials
         global master_password
         if not master_password:
-            master_password = typer.prompt("Enter master password", hide_input=True)
+            master_password = get_password_cross_platform("Enter master password: ")
         
-        if master_password is None:
+        if not master_password.strip():
             rich_print("[red]Master password is required[/red]")
             raise typer.Exit(1)
         

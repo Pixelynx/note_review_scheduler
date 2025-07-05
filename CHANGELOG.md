@@ -2,36 +2,6 @@
 
 ### [Unreleased]
 
-### [2025-01-08]
-#### Added
-- Complete CLI implementation with interactive configuration
-  - `src/note_reviewer/cli.py`: Fully functional interactive setup wizard replacing placeholder
-    - `setup()` command with step-by-step configuration process
-    - Gmail app password validation and connection testing
-    - Master password creation with confirmation
-    - Notes directory validation with auto-creation option
-    - Schedule configuration with time format validation
-    - Configuration summary table with confirmation
-    - Automatic database initialization and initial note scanning
-    - Email configuration testing with user feedback
-    - Force reconfiguration option with `--force` flag
-  - `start()` command with actual scheduler initialization and daemon mode preparation
-  - `status()` command with comprehensive system health monitoring
-    - Configuration validation and credential verification
-    - Notes directory scanning with file count reporting
-    - Database connectivity testing and note statistics
-    - Email service connection validation
-    - System health metrics (CPU, memory usage)
-    - Recent activity summary with available notes listing
-    - Quick action suggestions for next steps
-  - Improved error handling with proper master password validation
-  - Rich terminal output with tables, progress indicators, and color coding
-  - Integrated credential manager with setup wizard functionality
-  - Automatic database initialization during setup
-  - Email service validation during configuration
-  - Configuration persistence with encrypted storage
-  - Setup validation with immediate feedback
-
 ### [2025-06-30]
   **Main Application Architecture**:
     - Added critical master password type safety with proper None checks
@@ -102,6 +72,62 @@
   - `psutil==5.9.8`: System resource monitoring and process management
   
   This implementation provides military-grade scheduling and automation with enterprise monitoring, comprehensive GitHub Actions integration, and bulletproof backup systems. The system is now fully production-ready with automated deployment, monitoring, and disaster recovery capabilities.
+
+#### Added
+- Complete CLI implementation with interactive configuration
+  - `src/note_reviewer/cli.py`: Fully functional interactive setup wizard replacing placeholder
+    - `setup()` command with step-by-step configuration process
+    - Gmail app password validation and connection testing
+    - Master password creation with confirmation
+    - Notes directory validation with auto-creation option
+    - Schedule configuration with time format validation
+    - Configuration summary table with confirmation
+    - Automatic database initialization and initial note scanning
+    - Email configuration testing with user feedback
+    - Force reconfiguration option with `--force` flag
+  - `start()` command with actual scheduler initialization and daemon mode preparation
+  - `status()` command with comprehensive system health monitoring
+    - Configuration validation and credential verification
+    - Notes directory scanning with file count reporting
+    - Database connectivity testing and note statistics
+    - Email service connection validation
+    - System health metrics (CPU, memory usage)
+    - Recent activity summary with available notes listing
+    - Quick action suggestions for next steps
+  - Improved error handling with proper master password validation
+  - Rich terminal output with tables, progress indicators, and color coding
+  - Integrated credential manager with setup wizard functionality
+  - Automatic database initialization during setup
+  - Email service validation during configuration
+  - Configuration persistence with encrypted storage
+  - Setup validation with immediate feedback
+
+- Git Bash Terminal Compatibility:
+  - Added automatic Git Bash detection via `MSYSTEM` environment variable
+  - Implemented visible password input for Git Bash with security notice
+  - Used `sys.stdin.readline()` for better signal handling in MSYS2 environment
+- Enhanced Ctrl+C Handling: Improved interrupt signal processing across all terminals
+  - Added confirmation mechanism: "Press Enter to confirm exit, or Ctrl+C again to force quit"
+  - Implemented graceful shutdown with user confirmation to prevent accidental termination
+  - Added signal handling setup for better interrupt management
+- Cross-Platform Password Input: Unified password handling across terminal environments
+  - Automatic fallback to `getpass` for PowerShell and Command Prompt
+  - Clear user feedback about password visibility in Git Bash environments
+  - Consistent error handling and user messaging across platforms
+
+### Changed
+- Simplified terminal detection logic for better reliability
+- Enhanced error messages with platform-specific guidance
+- Added proper signal handler registration for SIGINT and SIGTERM
+- Improved exception handling with nested KeyboardInterrupt detection
+
+### Fixed
+- Resolved hanging issues with password input in Git Bash/MSYS2 environments
+- Removed complex `stty` command usage that caused terminal compatibility issues
+- Fixed KeyboardInterrupt detection in both Git Bash and standard terminals
+- `src/note_reviewer/cli.py`: Replaced problematic `typer.prompt(..., hide_input=True)` with cross-platform solution
+
+
 
 ### [2025-29-06]
 #### Added

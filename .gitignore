@@ -20,9 +20,10 @@ config.yml
 .secrets
 .env.local
 
-# Logs (loguru output)
+# Logs
 *.log
 logs/
+REVIEW.md
 
 # IDE/Editor files
 .cursor

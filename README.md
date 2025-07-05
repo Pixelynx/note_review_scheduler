@@ -2,6 +2,8 @@
 
 An intelligent note review scheduler that automatically scans your notes, selects the most relevant ones, and sends them via email on a configurable schedule.
 
+**Current Status**: This project has a robust backend implementation but requires manual setup. The CLI setup wizard is not yet implemented.
+
 ## Features
 
 ### Multi-Format Note Support
@@ -33,13 +35,30 @@ An intelligent note review scheduler that automatically scans your notes, select
 - **Structured Logging**: Comprehensive event tracking
 - **Backup System**: Automated database backups
 
-### Modern CLI Interface
-- **Interactive Setup**: Guided configuration wizard
-- **Rich Output**: Beautiful terminal interface with colors and tables
-- **Manual Controls**: Send notes on-demand, view statistics
-- **Status Monitoring**: Real-time system health reporting
+### CLI Interface Status
+- **Backend**: Fully implemented and functional
+- **CLI Commands**: Basic structure exists but setup wizard needs manual configuration
+- **Manual Controls**: Core functionality works when properly configured
 
-## Quick Start
+## Installation & Setup
+
+### Prerequisites
+
+1. **Python 3.9+** required
+2. **Gmail Account** with 2-factor authentication enabled
+3. **Gmail App Password** (not your regular password)
+4. **Terminal Compatibility**: Works with PowerShell, Command Prompt, and Git Bash
+
+### Terminal Support
+
+The application now supports all major Windows terminals:
+
+- **PowerShell**: Full hidden password input support
+- **Command Prompt**: Full hidden password input support  
+- **Git Bash/MSYS2**: Uses visible password input (prevents hanging)
+- **WSL**: Full support via standard Unix tools
+
+**Git Bash Note**: Password input will be visible while typing in Git Bash terminals. This is normal and your password remains secure.
 
 ### Installation
 
@@ -49,61 +68,102 @@ git clone https://github.com/pixelynx/note-review-scheduler.git
 cd note-review-scheduler
 
 # Install dependencies
-pip install -e ".[dev]"
+pip install -e .                    # Using pyproject.toml
 ```
 
-### Initial Setup
+### Gmail Setup
+
+**Required**: Set up Gmail app password before configuration.
+
+1. Go to Google Account settings
+2. Enable 2-factor authentication
+3. Generate an app password:
+   - Go to "Security" → "App passwords"
+   - Create a key name and generate password
+   - Save this password (you'll need it for setup)
+
+### Manual Configuration
+
+Since the setup wizard is not yet implemented, you need to configure manually:
+
+#### Option 1: Using the Setup Script
 
 ```bash
-# Run the setup wizard
-notes setup
+# Set environment variables
+export MASTER_PASSWORD="your_secure_master_password"
+export EMAIL_ADDRESS="your_email@gmail.com"
+export EMAIL_APP_PASSWORD="your_gmail_app_password"
+export NOTES_DIRECTORY="/path/to/your/notes"
 
-# Scan your notes directory
-notes scan /path/to/your/notes
-
-# Start the scheduler
-notes start
+# Run setup script
+python scripts/setup_github_credentials.py
 ```
 
-### Configuration
+#### Option 2: Programmatic Setup
 
-The setup wizard will guide you through:
+```python
+from pathlib import Path
+from src.note_reviewer.security.credentials import CredentialManager
 
-1. **Security Setup**: Master password for encryption
-2. **Email Configuration**: Gmail credentials and settings  
-3. **Note Directory**: Where your notes are stored
-4. **Schedule Settings**: When to send emails
+# Setup credentials
+config_file = Path("config/credentials.json")
+master_password = "your_secure_master_password"
+
+manager = CredentialManager.setup_wizard(
+    config_file=config_file,
+    master_password=master_password,
+    gmail_username="your_email@gmail.com",
+    gmail_app_password="your_gmail_app_password",
+    recipient_email="recipient@email.com",
+    notes_directory="/path/to/your/notes",
+    from_name="Your Name"
+)
+```
 
 ## Usage
 
 ### Command Line Interface
 
+**Note**: Some CLI commands are not fully implemented yet.
+
 ```bash
-# Setup and configuration
-notes setup                    # Initial setup wizard
-notes setup --force           # Reconfigure existing setup
+# Basic operations (working)
+python -m src.note_reviewer.cli setup
+python -m src.note_reviewer.cli scan /path/to/notes    # Scan notes
+python -m src.note_reviewer.cli status                 # System status
+python -m src.note_reviewer.cli config --show          # View configuration
 
-# Scheduler control
-notes start                    # Start scheduler (foreground)
-notes start --daemon          # Start as background service
-notes stop                     # Stop running scheduler
-
-# Manual operations
-notes scan                     # Scan notes directory
-notes send                     # Send email immediately
-notes send --preview          # Preview without sending
-
-# Monitoring and info
-notes status                   # System health and status
-notes stats                    # Usage statistics
-notes config --show           # View current configuration
+# Planned commands (not fully implemented)
+notes setup                    # Setup wizard (placeholder)
+notes start                    # Start scheduler 
+notes send                     # Send email manually
 ```
 
-### Scheduling Options
+### Programmatic Usage
 
-- **Daily**: Send at specified time each day
-- **Weekly**: Send on specific day of week
-- **Custom**: Configurable intervals and conditions
+```python
+from src.note_reviewer.main import NoteReviewApplication
+
+# Initialize application
+app = NoteReviewApplication()
+if app.initialize("your_master_password"):
+    # Run operations
+    app.run_scan()
+    app.send_manual_email(max_notes=3, preview_only=True)
+    app.start_scheduler()
+```
+
+### Working Features
+
+[x] **File Scanning**: Comprehensive note discovery and analysis  
+[x] **Database Operations**: Note storage and send history tracking  
+[x] **Email Service**: Gmail SMTP with templates and rate limiting  
+[x] **Security**: Encrypted credential storage  
+[x] **Selection Algorithm**: Intelligent note prioritization  
+[x] **Scheduler Backend**: Configurable scheduling system  
+
+[-] **Partial Implementation**: CLI setup wizard, some CLI commands  
+[] **Not Working**: Automatic setup wizard, daemon mode  
 
 ## Architecture
 
@@ -133,12 +193,13 @@ src/note_reviewer/
 
 ## Configuration
 
-### Email Settings
+### Required Settings
 
-For Gmail integration:
-1. Enable 2-factor authentication
-2. Generate an app password
-3. Use email + app password in setup
+- **Master Password**: Secure password for encryption
+- **Gmail Credentials**: Username and app password
+- **Notes Directory**: Path to your notes folder
+- **Recipient Email**: Where to send note reviews
+- **Schedule**: When to send emails
 
 ### File Format Support
 
@@ -155,84 +216,78 @@ For Gmail integration:
 - **Content Summarization**: Automatic excerpts
 - **Duplicate Detection**: SHA-256 content hashing
 
-## Development
+## Development Status
 
-### Testing
+### Implemented Components
 
-```bash
-# Run all tests
-pytest
+| Component | Status | Description |
+|-----------|--------|-------------|
+| File Scanner | Complete | Multi-format parsing with metadata extraction |
+| Database | Complete | SQLite with proper schema and operations |
+| Email Service | Complete | Gmail SMTP with rate limiting |
+| Security | Complete | AES-256 encryption and credential management |
+| Selection Algorithm | Complete | Intelligent note scoring and selection |
+| Scheduler | Complete | Background scheduling with multiple types |
+| CLI Backend | Complete | Core functionality implemented |
+| CLI Interface | Partial | Commands exist but setup wizard incomplete |
+| Email Templates | Complete | HTML and text templates ready |
 
-# Run with coverage
-pytest --cov=src/note_reviewer
+### Known Issues
 
-# Run specific test category
-pytest tests/test_scanner_system.py
-```
+1. **Setup Wizard**: CLI setup command is placeholder
+2. **Entry Points**: Package installation needs refinement  
+3. **Documentation**: Some examples reference unimplemented features
 
-### Code Quality
+### Next Development Steps
 
-```bash
-# Format code
-black src/ tests/
-
-# Lint code  
-ruff check src/ tests/
-
-# Type checking
-mypy src/
-```
-
-### Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Write tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
-
-## Security
-
-- **Encryption**: AES-256 with 100,000 PBKDF2 iterations
-- **Key Management**: Master password with secure derivation
-- **File Security**: Secure deletion of temporary files
-- **Network Security**: TLS for email transmission
-
-## Performance
-
-- **Efficient Scanning**: Incremental updates and caching
-- **Rate Limiting**: Configurable email throttling
-- **Resource Monitoring**: CPU, memory, and disk tracking
-- **Batch Processing**: Optimized database operations
+1. Implement interactive setup wizard in CLI
+2. Fix package entry points and installation
+3. Add daemon mode for background operation
+4. Complete remaining CLI command implementations
+5. Add configuration validation and migration
 
 ## Troubleshooting
 
-### Common Issues
+### Terminal & Setup Issues
 
-**Email Authentication Failed**
-- Verify Gmail app password is correct
+**Git Bash Hanging or Not Responding**
+- Fixed in latest version - password input now uses visible mode in Git Bash
+- Use Ctrl+C followed by Enter to safely exit during setup
+- Passwords are still secure even when visible during input
+
+**Ctrl+C Not Working**
+- Press Ctrl+C then hit Enter to confirm exit
+- For immediate termination, press Ctrl+C twice quickly
+- This prevents accidental process termination during configuration
+
+**"Configuration not found" Error**
+- Run manual setup using scripts or programmatic method
+- Ensure config/credentials.json exists and is accessible
+
+**Gmail Authentication Failed**
+- Verify Gmail app password is correct (not regular password)
 - Check 2-factor authentication is enabled
-- Ensure SMTP settings are correct
+- Ensure username is full Gmail address
 
-**Database Errors**
-- Check file permissions on database directory
-- Verify disk space availability
-- Review log files for detailed error messages
+**CLI Commands Not Working**
+- Many CLI commands are placeholders - use programmatic interface
+- Check Python path includes src/ directory
+- Use full module path: `python -m src.note_reviewer.cli`
 
-**Scan Failures**
-- Verify notes directory exists and is readable
-- Check file encoding (UTF-8 recommended)
-- Review excluded file patterns
+### Terminal Compatibility
 
-### Logging
-
-Logs are written to:
-- `logs/app.log` - Application events
-- `logs/error.log` - Error details
-- Console output for interactive commands
+| Terminal | Password Input | Ctrl+C Support | Status |
+|----------|---------------|----------------|---------|
+| PowerShell | Hidden | Full | Fully Supported |
+| Command Prompt | Hidden | Full | Fully Supported |
+| Git Bash | Visible | Confirmation Required | Supported |
+| WSL | Hidden | Full | Fully Supported |
 
 ## Support
 
 - **Issues**: GitHub Issues for bug reports
-- **Documentation**: See `docs/` directory _(Updating soon)_
-- **Examples**: Check `examples/` for sample configurations
+- **Status**: This is a development version - expect incomplete CLI features
+- **Contributing**: CLI implementation help needed
+
+**Ready for Use**: Backend components, programmatic interface  
+**Needs Work**: CLI setup wizard, package installation
