@@ -20,6 +20,7 @@ config.yml
 .secrets
 .env.local
 config/encrypted_config.json
+config/credentials.json
 
 # Logs
 *.log

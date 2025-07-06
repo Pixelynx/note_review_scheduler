@@ -209,11 +209,20 @@ class NoteScheduler:
         # Setup schedule based on config
         self._setup_schedule()
         
-        # Start scheduler thread
-        self.scheduler_thread = threading.Thread(target=self._run_scheduler, daemon=True)
+        # Start scheduler thread (non-daemon so it keeps process alive)
+        self.scheduler_thread = threading.Thread(target=self._run_scheduler, daemon=False)
         self.scheduler_thread.start()
         
         logger.info("NoteScheduler started successfully")
+    
+    def wait_for_shutdown(self) -> None:
+        """Wait for scheduler to shutdown (blocking call)."""
+        if self.scheduler_thread and self.scheduler_thread.is_alive():
+            try:
+                self.scheduler_thread.join()
+            except KeyboardInterrupt:
+                logger.info("Shutdown requested via keyboard interrupt")
+                self.stop()
     
     def stop(self) -> None:
         """Stop the scheduler gracefully."""
@@ -255,6 +264,11 @@ class NoteScheduler:
         if self.config.schedule_type == ScheduleType.DAILY:
             schedule.every().day.at(self.config.time_of_day).do(job_func)  # type: ignore
             logger.info(f"Scheduled daily job at {self.config.time_of_day}")
+            
+            # Log next run time
+            next_run = schedule.next_run()
+            if next_run:
+                logger.info(f"Next scheduled run: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
             
         elif self.config.schedule_type == ScheduleType.WEEKLY:
             if not self.config.day_of_week:
@@ -385,12 +399,12 @@ class NoteScheduler:
             logger.info("No notes selected by algorithm")
             return
         
-        # Format email
+        # Format email (disable TOC for email compatibility)
         email_content = self.email_formatter.format_email(
             selected_notes,
             template_name="rich_review",
-            include_toc=True,
-            max_preview_words=50
+            include_toc=False,
+            max_preview_words=75  # Slightly more content for better preview
         )
         
         # Send email

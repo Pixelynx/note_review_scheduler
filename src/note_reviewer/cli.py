@@ -137,7 +137,7 @@ def setup(
     
     rich_print("\n[green]This wizard will help you configure the note review scheduler.[/green]")
     rich_print("[cyan]You'll need:[/cyan]")
-    rich_print("  • Gmail account with 2-factor authentication enabled")
+    rich_print("  - Gmail account with 2-factor authentication enabled")
     rich_print("  - Gmail app password (not your regular password)")
     rich_print("  - Directory containing your notes")
     
@@ -177,7 +177,7 @@ def setup(
         rich_print("\n[bold]Gmail Configuration[/bold]")
         rich_print("[cyan]Instructions for Gmail App Password:[/cyan]")
         rich_print("1. Go to your Google Account settings")
-        rich_print("2. Navigate to Security → App passwords")
+        rich_print("2. Navigate to Security => App passwords")
         rich_print("3. Generate an app password for 'Mail'")
         rich_print("4. Use that password below (not your regular Gmail password)")
         
@@ -187,6 +187,47 @@ def setup(
             raise typer.Exit(1)
         
         gmail_app_password = get_password_cross_platform("Gmail app password: ")
+        
+        # Test email credentials immediately
+        rich_print("\n[yellow]Testing Gmail credentials...[/yellow]")
+        from .email.service import EmailService, EmailConfig
+        
+        email_config = EmailConfig(
+            smtp_server="smtp.gmail.com",
+            smtp_port=587,
+            username=gmail_username,
+            password=gmail_app_password,
+            from_email=gmail_username,
+            from_name=gmail_username.split('@')[0].title(),
+            timeout_seconds=10
+        )
+        
+        email_service = EmailService(email_config)
+        
+        try:
+            if email_service.test_connection():
+                rich_print("[green]Gmail credentials verified successfully![/green]")
+            else:
+                rich_print("[red]Gmail credentials test failed![/red]")
+                rich_print("[red]The app password may be incorrect or expired.[/red]")
+                rich_print("\n[cyan]Gmail app password should be 16 characters in format: xxxx xxxx xxxx xxxx[/cyan]")
+                
+                if typer.confirm("Do you want to retry entering your Gmail credentials?"):
+                    rich_print("\n[yellow]Please try again with your Gmail credentials...[/yellow]")
+                    return  # Exit setup to let user run it again
+                else:
+                    rich_print("[yellow]Continuing with unverified email credentials.[/yellow]")
+                    rich_print("[yellow]You can test the connection later with 'notes status'[/yellow]")
+        except Exception as e:
+            rich_print(f"[red]Gmail connection test failed: {e}[/red]")
+            rich_print("[red]This could be due to network issues or incorrect credentials.[/red]")
+            
+            if typer.confirm("Do you want to retry entering your Gmail credentials?"):
+                rich_print("\n[yellow]Please try again with your Gmail credentials...[/yellow]")
+                return  # Exit setup to let user run it again
+            else:
+                rich_print("[yellow]Continuing with unverified email credentials.[/yellow]")
+                rich_print("[yellow]You can test the connection later with 'notes status'[/yellow]")
         
         from_name = typer.prompt(
             "Display name for emails",
@@ -292,33 +333,6 @@ def setup(
         
         manager.save_credentials(email_creds, updated_config)
         
-        # Test the configuration
-        rich_print("\n[yellow]Testing email configuration...[/yellow]")
-        
-        from .email.service import EmailService, EmailConfig
-        
-        email_config = EmailConfig(
-            smtp_server="smtp.gmail.com",
-            smtp_port=587,
-            username=gmail_username,
-            password=gmail_app_password,
-            from_email=gmail_username,
-            from_name=from_name,
-            timeout_seconds=10  # Add timeout to prevent hanging
-        )
-        
-        email_service = EmailService(email_config)
-        rich_print("[dim]Attempting connection to Gmail SMTP...[/dim]")
-        try:
-            if email_service.test_connection():
-                rich_print("[green]Email configuration test successful![/green]")
-            else:
-                rich_print("[yellow]Email configuration test failed, but setup saved.[/yellow]")
-                rich_print("[yellow]  You may need to check your Gmail app password.[/yellow]")
-        except Exception as e:
-            rich_print(f"[yellow]Email test failed ({e}), but setup saved.[/yellow]")
-            rich_print("[yellow]  You can test the connection later with 'notes status'[/yellow]")
-        
         # Initialize database
         rich_print("\n[yellow]Initializing database...[/yellow]")
         from .database.operations import initialize_database
@@ -359,6 +373,7 @@ def setup(
         rich_print("  - notes send --preview - Preview a note selection") 
         rich_print("  - notes start         - Start the scheduler")
         rich_print("  - notes config --show - View your configuration")
+        rich_print("  - notes reset         - Reset configuration if needed")
         
     except KeyboardInterrupt:
         print("\nPress Enter to confirm exit, or Ctrl+C again to force quit...")
@@ -366,6 +381,7 @@ def setup(
             input()
             rich_print("\n[yellow]Setup cancelled by user[/yellow]")
             rich_print("[dim]You can run 'notes setup' again to restart the configuration.[/dim]")
+            rich_print("[dim]Or use 'notes reset' to clean up and start fresh.[/dim]")
             raise typer.Exit(0)
         except KeyboardInterrupt:
             rich_print("\n[yellow]Force quit - setup terminated[/yellow]")
@@ -373,6 +389,7 @@ def setup(
     except Exception as e:
         rich_print(f"\n[red]Setup failed: {e}[/red]")
         rich_print("[dim]You can run 'notes setup' again to retry.[/dim]")
+        rich_print("[dim]Or use 'notes reset' to clean up and start fresh.[/dim]")
         raise typer.Exit(1)
 
 
@@ -413,13 +430,32 @@ def start(
         rich_print("[cyan]Press Ctrl+C to stop[/cyan]")
         
         # Start the scheduler
-        success = app_instance.start_scheduler(daemon_mode=daemon)
-        
-        if success:
-            rich_print("[green]Scheduler started successfully[/green]")
+        if daemon:
+            # Daemon mode - start and return immediately
+            success = app_instance.start_scheduler(daemon_mode=True)
+            if success:
+                rich_print("[green]Scheduler started in daemon mode[/green]")
+                rich_print("[cyan]Use 'notes stop' to stop the scheduler[/cyan]")
+            else:
+                rich_print("[red]Failed to start scheduler[/red]")
+                raise typer.Exit(1)
         else:
-            rich_print("[red]Failed to start scheduler[/red]")
-            raise typer.Exit(1)
+            # Foreground mode - start and wait for shutdown
+            rich_print("[cyan]Starting scheduler in foreground mode...[/cyan]")
+            rich_print("[cyan]Press Ctrl+C to stop[/cyan]")
+            rich_print("[dim]Check the logs above for next scheduled run time[/dim]")
+            
+            try:
+                success = app_instance.start_scheduler(daemon_mode=False)
+                if success:
+                    rich_print("[green]Scheduler stopped gracefully[/green]")
+                else:
+                    rich_print("[red]Failed to start scheduler[/red]")
+                    raise typer.Exit(1)
+            except KeyboardInterrupt:
+                rich_print("\n[yellow]Stopping scheduler...[/yellow]")
+                app_instance.stop()
+                rich_print("[green]Scheduler stopped[/green]")
             
     except KeyboardInterrupt:
         rich_print("\n[yellow]Scheduler stopped by user[/yellow]")
@@ -777,6 +813,56 @@ def config(
     
     else:
         rich_print("[yellow]Use --show to view or --edit to modify configuration.[/yellow]")
+
+
+@app.command()
+def reset(
+    confirm: bool = typer.Option(False, "--confirm", help="Skip confirmation prompt"),
+) -> None:
+    """Reset configuration and clean up all files."""
+    rich_print("\n[bold red]Reset Configuration[/bold red]")
+    
+    if not config_file.exists():
+        rich_print("[yellow]No configuration found to reset.[/yellow]")
+        return
+    
+    rich_print("[yellow]This will permanently delete:[/yellow]")
+    rich_print(f"  - Configuration file: {config_file}")
+    rich_print(f"  - Database file: data/notes.db")
+    rich_print(f"  - Log files: logs/")
+    rich_print("\n[red]This action cannot be undone![/red]")
+    
+    if not confirm:
+        if not typer.confirm("\nAre you sure you want to reset all configuration?"):
+            rich_print("[yellow]Reset cancelled.[/yellow]")
+            return
+    
+    try:
+        # Remove configuration file
+        if config_file.exists():
+            config_file.unlink()
+            rich_print(f"[green]Removed configuration file: {config_file}[/green]")
+        
+        # Remove database file
+        db_file = Path("data/notes.db")
+        if db_file.exists():
+            db_file.unlink()
+            rich_print(f"[green]Removed database file: {db_file}[/green]")
+        
+        # Remove log files
+        log_dir = Path("logs")
+        if log_dir.exists():
+            for log_file in log_dir.glob("*.log*"):
+                log_file.unlink()
+            rich_print(f"[green]Removed log files from: {log_dir}[/green]")
+        
+        rich_print("\n[bold green]Configuration reset completed![/bold green]")
+        rich_print("\n[cyan]To set up again, run:[/cyan]")
+        rich_print("  notes setup")
+        
+    except Exception as e:
+        rich_print(f"[red]Failed to reset configuration: {e}[/red]")
+        raise typer.Exit(1)
 
 
 def main() -> None:
