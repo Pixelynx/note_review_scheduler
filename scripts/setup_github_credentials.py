@@ -68,7 +68,7 @@ def main() -> None:
         app_config = AppConfig(
             notes_directory=notes_directory,
             recipient_email=email_address,
-            schedule_time="09:00",  # Default to 9 AM
+            schedule_time="12:00",  # Default to noon
             notes_per_email=5
         )
         

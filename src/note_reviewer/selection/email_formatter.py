@@ -90,7 +90,7 @@ class EmailFormatter:
         selected_notes: List[NoteScore],
         template_name: str = "rich_review",
         include_toc: bool = False,  # Disable TOC by default for email compatibility
-        max_preview_words: int = 50
+        max_preview_words: int = 300
     ) -> EmailContent:
         """Format selected notes into a rich email.
         
@@ -98,7 +98,7 @@ class EmailFormatter:
             selected_notes: List of scored notes to include.
             template_name: Email template to use.
             include_toc: Whether to include table of contents.
-            max_preview_words: Maximum words in note preview.
+            max_preview_words: Maximum characters in note preview.
             
         Returns:
             Complete formatted email content.
@@ -331,13 +331,13 @@ class EmailFormatter:
     def _format_notes_html(
         self, 
         groups: List[NoteGroup], 
-        max_preview_words: int
+        max_preview_chars: int
     ) -> str:
         """Format notes as rich HTML content.
         
         Args:
             groups: Categorized note groups.
-            max_preview_words: Maximum words in preview.
+            max_preview_chars: Maximum characters in preview.
             
         Returns:
             HTML formatted notes content.
@@ -362,7 +362,7 @@ class EmailFormatter:
             
             # Notes in group
             for j, note in enumerate(group.notes, 1):
-                note_content: str = self._format_single_note_html(note, max_preview_words)
+                note_content: str = self._format_single_note_html(note, max_preview_chars)
                 html_content += f'<div class="note" id="note-{i}-{j}">\n{note_content}\n</div>\n'
             
             html_content += '</div>\n\n'
@@ -372,13 +372,13 @@ class EmailFormatter:
     def _format_single_note_html(
         self, 
         note: NoteScore, 
-        max_preview_words: int
+        max_preview_chars: int
     ) -> str:
         """Format a single note as HTML.
         
         Args:
             note: Note to format.
-            max_preview_words: Maximum words in preview.
+            max_preview_chars: Maximum characters in preview.
             
         Returns:
             HTML formatted note.
@@ -388,7 +388,7 @@ class EmailFormatter:
             content: str = Path(note.file_path).read_text(encoding='utf-8', errors='ignore')
             
             # Create preview
-            preview: str = self._create_content_preview(content, max_preview_words)
+            preview: str = self._create_content_preview(content, max_preview_chars)
             
             # Convert markdown to HTML
             html_preview: str = self._markdown_to_html(preview)
@@ -422,13 +422,13 @@ class EmailFormatter:
     def _format_notes_text(
         self, 
         groups: List[NoteGroup], 
-        max_preview_words: int
+        max_preview_chars: int
     ) -> str:
         """Format notes as plain text content.
         
         Args:
             groups: Categorized note groups.
-            max_preview_words: Maximum words in preview.
+            max_preview_chars: Maximum characters in preview.
             
         Returns:
             Plain text formatted notes.
@@ -449,7 +449,7 @@ class EmailFormatter:
             
             # Notes in group
             for j, note in enumerate(group.notes, 1):
-                note_content: str = self._format_single_note_text(note, max_preview_words)
+                note_content: str = self._format_single_note_text(note, max_preview_chars)
                 text_content += f"{i}.{j} {note_content}\n\n"
             
             text_content += "\n"
@@ -459,13 +459,13 @@ class EmailFormatter:
     def _format_single_note_text(
         self, 
         note: NoteScore, 
-        max_preview_words: int
+        max_preview_chars: int
     ) -> str:
         """Format a single note as plain text.
         
         Args:
             note: Note to format.
-            max_preview_words: Maximum words in preview.
+            max_preview_chars: Maximum characters in preview.
             
         Returns:
             Plain text formatted note.
@@ -475,7 +475,7 @@ class EmailFormatter:
             content: str = Path(note.file_path).read_text(encoding='utf-8', errors='ignore')
             
             # Create preview
-            preview: str = self._create_content_preview(content, max_preview_words)
+            preview: str = self._create_content_preview(content, max_preview_chars)
             
             # Note metadata
             file_name: str = Path(note.file_path).name
@@ -494,25 +494,32 @@ class EmailFormatter:
             logger.error(f"Error formatting note {note.file_path}: {e}")
             return f"Error loading note: {str(e)}\n"
     
-    def _create_content_preview(self, content: str, max_words: int) -> str:
-        """Create a preview of note content.
+    def _create_content_preview(self, content: str, max_chars: int = 300) -> str:
+        """Create a preview of note content with character-based truncation.
         
         Args:
             content: Full note content.
-            max_words: Maximum words in preview.
+            max_chars: Maximum characters in preview (default: 300).
             
         Returns:
-            Content preview.
+            Content preview truncated to max_chars with "..." if needed.
         """
-        words: List[str] = content.split()
+        # Remove extra whitespace and normalize
+        clean_content: str = ' '.join(content.split())
         
-        if len(words) <= max_words:
-            return content
+        # If content is short enough, return it in full
+        if len(clean_content) <= max_chars:
+            return clean_content
         
-        preview_words: List[str] = words[:max_words]
-        preview: str = " ".join(preview_words)
+        # Truncate to max_chars
+        truncated: str = clean_content[:max_chars].strip()
         
-        return preview + "..."
+        # Try to end at a word boundary to avoid cutting words in half
+        last_space: int = truncated.rfind(' ')
+        if last_space > max_chars * 0.8:  # Only break if we don't lose too much content
+            truncated = truncated[:last_space].strip()
+        
+        return truncated + "..."
     
     def _markdown_to_html(self, markdown_text: str) -> str:
         """Convert markdown text to HTML with email-safe styling.

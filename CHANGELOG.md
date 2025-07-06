@@ -4,6 +4,19 @@
 
 ### [2025-07-06]
 
+#### Fixed
+- **Email Preview and Attachment System**: Enhanced email content delivery with better previews and full note access
+  - `src/note_reviewer/selection/email_formatter.py`: Updated content preview system from word-based to character-based truncation
+    - Changed `_create_content_preview()` to limit previews to exactly 300 characters with "..." when truncated
+    - Added intelligent word boundary detection to avoid cutting words in half (breaks at 80% of character limit)
+    - Normalized whitespace in preview content for cleaner display
+    - Updated all formatting methods (`_format_notes_html`, `_format_notes_text`, etc.) to use character-based limits
+  - `src/note_reviewer/scheduler/scheduler.py`: Enabled file attachments for complete note access
+    - Added `attach_files=True` to `send_notes_email()` calls to include full note files as email attachments
+    - Email now contains both shortened previews (300 chars) in the body AND full note content as downloadable attachments
+    - Attachment filenames match original note filenames (.txt, .md files)
+    - Full note content accessible without email size limitations through attachments
+
 ### [2025-07-05]
 #### Added
 - **Environment Variable Support**: Added `python-dotenv` dependency to enable loading `.env` files

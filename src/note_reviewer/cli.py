@@ -456,6 +456,7 @@ def start(
                 rich_print("\n[yellow]Stopping scheduler...[/yellow]")
                 app_instance.stop()
                 rich_print("[green]Scheduler stopped[/green]")
+                raise typer.Exit(0)
             
     except KeyboardInterrupt:
         rich_print("\n[yellow]Scheduler stopped by user[/yellow]")

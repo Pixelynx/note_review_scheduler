@@ -115,14 +115,17 @@ class SelectionAlgorithm:
         
         # Score all filtered notes
         scored_notes: List[NoteScore] = self._score_notes(filtered_notes, criteria)
+        logger.info(f"Scored {len(scored_notes)} notes after content analysis")
         
         # Select best notes using priority queue
         selected_notes: List[NoteScore] = self._select_top_notes(scored_notes, criteria)
+        logger.info(f"Selected {len(selected_notes)} top notes before optimization")
         
         # Apply diversity and email length optimization
         optimized_selection: List[NoteScore] = self._optimize_selection(
             selected_notes, criteria
         )
+        logger.info(f"Final optimized selection: {len(optimized_selection)} notes")
         
         # Update selection history
         for note_score in optimized_selection:

@@ -191,7 +191,11 @@ class NoteReviewApplication:
             else:
                 logger.info("Scheduler started in foreground mode")
                 # In foreground mode, wait for shutdown
-                self.scheduler.wait_for_shutdown()
+                try:
+                    self.scheduler.wait_for_shutdown()
+                except KeyboardInterrupt:
+                    logger.info("Received keyboard interrupt, stopping scheduler...")
+                    self.scheduler.stop()
                 return True
             
         except Exception as e:
