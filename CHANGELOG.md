@@ -2,35 +2,101 @@
 
 ### [Unreleased]
 
-### [2025-01-08]
+### [2025-07-06]
+
+#### Fixed
+- **Email Preview and Attachment System**: Enhanced email content delivery with better previews and full note access
+  - `src/note_reviewer/selection/email_formatter.py`: Updated content preview system from word-based to character-based truncation
+    - Changed `_create_content_preview()` to limit previews to exactly 300 characters with "..." when truncated
+    - Added intelligent word boundary detection to avoid cutting words in half (breaks at 80% of character limit)
+    - Normalized whitespace in preview content for cleaner display
+    - Updated all formatting methods (`_format_notes_html`, `_format_notes_text`, etc.) to use character-based limits
+  - `src/note_reviewer/scheduler/scheduler.py`: Enabled file attachments for complete note access
+    - Added `attach_files=True` to `send_notes_email()` calls to include full note files as email attachments
+    - Email now contains both shortened previews (300 chars) in the body AND full note content as downloadable attachments
+    - Attachment filenames match original note filenames (.txt, .md files)
+    - Full note content accessible without email size limitations through attachments
+
+### [2025-07-05]
 #### Added
-- Complete CLI implementation with interactive configuration
-  - `src/note_reviewer/cli.py`: Fully functional interactive setup wizard replacing placeholder
-    - `setup()` command with step-by-step configuration process
-    - Gmail app password validation and connection testing
-    - Master password creation with confirmation
-    - Notes directory validation with auto-creation option
-    - Schedule configuration with time format validation
-    - Configuration summary table with confirmation
-    - Automatic database initialization and initial note scanning
-    - Email configuration testing with user feedback
-    - Force reconfiguration option with `--force` flag
-  - `start()` command with actual scheduler initialization and daemon mode preparation
-  - `status()` command with comprehensive system health monitoring
-    - Configuration validation and credential verification
-    - Notes directory scanning with file count reporting
-    - Database connectivity testing and note statistics
-    - Email service connection validation
-    - System health metrics (CPU, memory usage)
-    - Recent activity summary with available notes listing
-    - Quick action suggestions for next steps
-  - Improved error handling with proper master password validation
-  - Rich terminal output with tables, progress indicators, and color coding
-  - Integrated credential manager with setup wizard functionality
-  - Automatic database initialization during setup
-  - Email service validation during configuration
-  - Configuration persistence with encrypted storage
-  - Setup validation with immediate feedback
+- **Environment Variable Support**: Added `python-dotenv` dependency to enable loading `.env` files
+  - `pyproject.toml`: Added `python-dotenv>=1.0.0,<2.0.0` to project dependencies
+  - Enables local development with `.env` files for environment variable configuration
+
+- **Enhanced Setup Flow with Email Validation**: Improved setup process with immediate credential validation
+  - `src/note_reviewer/cli.py`: Added early Gmail credential testing during setup
+    - Tests email credentials immediately after entry, before completing setup
+    - Provides clear feedback on Gmail app password format (xxxx xxxx xxxx xxxx)
+    - Offers retry option when credentials fail validation
+    - Prevents incomplete setup configurations with invalid email settings
+    - Graceful handling of network errors during credential testing
+
+- **Configuration Reset Command**: Added clean configuration reset functionality
+  - `src/note_reviewer/cli.py`: New `reset` command for complete configuration cleanup
+    - `notes reset` command removes all configuration files, database, and logs
+    - Confirmation prompt with `--confirm` flag to skip user confirmation
+    - Comprehensive cleanup including config file, database, and log files
+    - Clear guidance on next steps after reset completion
+    - Integrated reset suggestions in setup error messages
+
+- **Enhanced Debugging**: Added comprehensive logging for troubleshooting note selection issues
+  - Database query result counts and candidate note details
+  - Selection algorithm step-by-step logging showing filtering, scoring, and optimization results
+  - Debug output for the first 5 candidate notes when selection fails
+
+#### Changed
+- **GitHub Credentials Setup Script**: Enhanced environment variable loading capabilities
+  - `scripts/setup_github_credentials.py`: Added automatic `.env` file loading support
+    - Automatically detects and loads `.env` file from project root if it exists
+    - Graceful fallback to system environment variables when `.env` file not found
+    - Clear user feedback about environment variable source (file vs system)
+    - Maintains backward compatibility with GitHub Actions environment variable setup
+
+- **Improved Setup Error Handling**: Enhanced user guidance during setup failures
+  - Better error messages with clear instructions for Gmail app password format
+  - Consistent suggestions for retry options and cleanup commands
+  - Streamlined setup flow with early validation to prevent partial failures
+
+#### Fixed
+- **Setup Flow UX Issues**: Resolved problematic setup behavior with failed email credentials
+  - Eliminated partial configuration saves when email credentials fail
+  - Removed redundant email testing at end of setup process
+  - Improved user experience with immediate feedback and retry options
+
+- **Scheduler Process Management**: Fixed scheduler immediately exiting after startup
+  - `src/note_reviewer/scheduler/scheduler.py`: Changed scheduler thread from daemon to non-daemon
+  - `src/note_reviewer/main.py`: Added proper blocking behavior for foreground mode
+  - `src/note_reviewer/cli.py`: Improved CLI handling of foreground vs daemon modes
+  - Added `wait_for_shutdown()` method for proper process lifecycle management
+  - Enhanced logging to show next scheduled run time for better user awareness
+  - Fixed daemon thread issue that caused scheduler to exit when main process ended
+
+- **Email Formatting Issues**: Fixed oversized text and broken table of contents in emails
+  - `src/note_reviewer/selection/email_formatter.py`: Simplified markdown conversion for email compatibility
+    - Removed header conversions that caused oversized text in email clients
+    - Limited markdown patterns to basic formatting (bold, italic, code, links)
+    - Improved list handling to prevent HTML structure issues
+    - Created simplified HTML email template without complex CSS conflicts
+  - `src/note_reviewer/email/templates/notes_review.html`: Fixed CSS conflicts with content
+    - Added explicit font size controls for headers and paragraphs
+    - Removed monospace font from note content to improve readability
+    - Added important declarations to prevent style conflicts
+  - `src/note_reviewer/scheduler/scheduler.py`: Disabled table of contents for email compatibility
+    - Removed problematic HTML anchor links that don't work in email clients
+    - Increased preview word count for better content visibility
+    - Focused on mobile-friendly email formatting
+
+- **Multiple Notes Selection Issue**: Fixed only 1 note being sent instead of configured 3
+  - `src/note_reviewer/scheduler/scheduler.py`: Added comprehensive debugging logs for note selection process
+  - `src/note_reviewer/selection/selection_algorithm.py`: Made selection criteria more permissive
+    - Reduced `min_word_count` from 10 to 5 words
+    - Disabled `avoid_duplicates` filter temporarily to prevent over-filtering
+  - Added logging to track notes through database query → content analysis → selection → optimization pipeline
+  - Fixed database query parameters and selection algorithm interaction
+
+- **Email Send History Tracking**: Fixed notes not being marked as sent, causing repeated selections
+  - `src/note_reviewer/scheduler/scheduler.py`: Added `record_email_sent()` calls for each note in sent emails
+  - Properly tracking send history to prevent the same notes from being selected repeatedly
 
 ### [2025-06-30]
   **Main Application Architecture**:
@@ -102,6 +168,62 @@
   - `psutil==5.9.8`: System resource monitoring and process management
   
   This implementation provides military-grade scheduling and automation with enterprise monitoring, comprehensive GitHub Actions integration, and bulletproof backup systems. The system is now fully production-ready with automated deployment, monitoring, and disaster recovery capabilities.
+
+#### Added
+- Complete CLI implementation with interactive configuration
+  - `src/note_reviewer/cli.py`: Fully functional interactive setup wizard replacing placeholder
+    - `setup()` command with step-by-step configuration process
+    - Gmail app password validation and connection testing
+    - Master password creation with confirmation
+    - Notes directory validation with auto-creation option
+    - Schedule configuration with time format validation
+    - Configuration summary table with confirmation
+    - Automatic database initialization and initial note scanning
+    - Email configuration testing with user feedback
+    - Force reconfiguration option with `--force` flag
+  - `start()` command with actual scheduler initialization and daemon mode preparation
+  - `status()` command with comprehensive system health monitoring
+    - Configuration validation and credential verification
+    - Notes directory scanning with file count reporting
+    - Database connectivity testing and note statistics
+    - Email service connection validation
+    - System health metrics (CPU, memory usage)
+    - Recent activity summary with available notes listing
+    - Quick action suggestions for next steps
+  - Improved error handling with proper master password validation
+  - Rich terminal output with tables, progress indicators, and color coding
+  - Integrated credential manager with setup wizard functionality
+  - Automatic database initialization during setup
+  - Email service validation during configuration
+  - Configuration persistence with encrypted storage
+  - Setup validation with immediate feedback
+
+- Git Bash Terminal Compatibility:
+  - Added automatic Git Bash detection via `MSYSTEM` environment variable
+  - Implemented visible password input for Git Bash with security notice
+  - Used `sys.stdin.readline()` for better signal handling in MSYS2 environment
+- Enhanced Ctrl+C Handling: Improved interrupt signal processing across all terminals
+  - Added confirmation mechanism: "Press Enter to confirm exit, or Ctrl+C again to force quit"
+  - Implemented graceful shutdown with user confirmation to prevent accidental termination
+  - Added signal handling setup for better interrupt management
+- Cross-Platform Password Input: Unified password handling across terminal environments
+  - Automatic fallback to `getpass` for PowerShell and Command Prompt
+  - Clear user feedback about password visibility in Git Bash environments
+  - Consistent error handling and user messaging across platforms
+
+### Changed
+- Simplified terminal detection logic for better reliability
+- Enhanced error messages with platform-specific guidance
+- Added proper signal handler registration for SIGINT and SIGTERM
+- Improved exception handling with nested KeyboardInterrupt detection
+
+### Fixed
+- Resolved hanging issues with password input in Git Bash/MSYS2 environments
+- Removed complex `stty` command usage that caused terminal compatibility issues
+- Fixed KeyboardInterrupt detection in both Git Bash and standard terminals
+- `src/note_reviewer/cli.py`: Replaced problematic `typer.prompt(..., hide_input=True)` with cross-platform solution
+
+
 
 ### [2025-29-06]
 #### Added

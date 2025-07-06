@@ -89,8 +89,8 @@ class EmailFormatter:
         self,
         selected_notes: List[NoteScore],
         template_name: str = "rich_review",
-        include_toc: bool = True,
-        max_preview_words: int = 50
+        include_toc: bool = False,  # Disable TOC by default for email compatibility
+        max_preview_words: int = 300
     ) -> EmailContent:
         """Format selected notes into a rich email.
         
@@ -98,7 +98,7 @@ class EmailFormatter:
             selected_notes: List of scored notes to include.
             template_name: Email template to use.
             include_toc: Whether to include table of contents.
-            max_preview_words: Maximum words in note preview.
+            max_preview_words: Maximum characters in note preview.
             
         Returns:
             Complete formatted email content.
@@ -114,11 +114,10 @@ class EmailFormatter:
         # Generate email subject
         subject: str = self._generate_subject(selected_notes, note_groups)
         
-        # Create table of contents
-        toc_html: str = ""
+        # Create table of contents (only for text version if requested)
         toc_text: str = ""
         if include_toc:
-            toc_html, toc_text = self._generate_table_of_contents(note_groups)
+            _, toc_text = self._generate_table_of_contents(note_groups)
         
         # Format note content
         notes_html: str = self._format_notes_html(note_groups, max_preview_words)
@@ -127,9 +126,9 @@ class EmailFormatter:
         # Generate email statistics
         stats: Dict[str, Any] = self._generate_email_stats(selected_notes)
         
-        # Build complete email content
-        html_content: str = self._build_html_email(
-            subject, toc_html, notes_html, stats, template_name
+        # Build complete email content (use simple template approach)
+        html_content: str = self._build_simple_html_email(
+            subject, notes_html, stats
         )
         
         plain_text_content: str = self._build_text_email(
@@ -332,13 +331,13 @@ class EmailFormatter:
     def _format_notes_html(
         self, 
         groups: List[NoteGroup], 
-        max_preview_words: int
+        max_preview_chars: int
     ) -> str:
         """Format notes as rich HTML content.
         
         Args:
             groups: Categorized note groups.
-            max_preview_words: Maximum words in preview.
+            max_preview_chars: Maximum characters in preview.
             
         Returns:
             HTML formatted notes content.
@@ -363,7 +362,7 @@ class EmailFormatter:
             
             # Notes in group
             for j, note in enumerate(group.notes, 1):
-                note_content: str = self._format_single_note_html(note, max_preview_words)
+                note_content: str = self._format_single_note_html(note, max_preview_chars)
                 html_content += f'<div class="note" id="note-{i}-{j}">\n{note_content}\n</div>\n'
             
             html_content += '</div>\n\n'
@@ -373,13 +372,13 @@ class EmailFormatter:
     def _format_single_note_html(
         self, 
         note: NoteScore, 
-        max_preview_words: int
+        max_preview_chars: int
     ) -> str:
         """Format a single note as HTML.
         
         Args:
             note: Note to format.
-            max_preview_words: Maximum words in preview.
+            max_preview_chars: Maximum characters in preview.
             
         Returns:
             HTML formatted note.
@@ -389,7 +388,7 @@ class EmailFormatter:
             content: str = Path(note.file_path).read_text(encoding='utf-8', errors='ignore')
             
             # Create preview
-            preview: str = self._create_content_preview(content, max_preview_words)
+            preview: str = self._create_content_preview(content, max_preview_chars)
             
             # Convert markdown to HTML
             html_preview: str = self._markdown_to_html(preview)
@@ -423,13 +422,13 @@ class EmailFormatter:
     def _format_notes_text(
         self, 
         groups: List[NoteGroup], 
-        max_preview_words: int
+        max_preview_chars: int
     ) -> str:
         """Format notes as plain text content.
         
         Args:
             groups: Categorized note groups.
-            max_preview_words: Maximum words in preview.
+            max_preview_chars: Maximum characters in preview.
             
         Returns:
             Plain text formatted notes.
@@ -450,7 +449,7 @@ class EmailFormatter:
             
             # Notes in group
             for j, note in enumerate(group.notes, 1):
-                note_content: str = self._format_single_note_text(note, max_preview_words)
+                note_content: str = self._format_single_note_text(note, max_preview_chars)
                 text_content += f"{i}.{j} {note_content}\n\n"
             
             text_content += "\n"
@@ -460,13 +459,13 @@ class EmailFormatter:
     def _format_single_note_text(
         self, 
         note: NoteScore, 
-        max_preview_words: int
+        max_preview_chars: int
     ) -> str:
         """Format a single note as plain text.
         
         Args:
             note: Note to format.
-            max_preview_words: Maximum words in preview.
+            max_preview_chars: Maximum characters in preview.
             
         Returns:
             Plain text formatted note.
@@ -476,7 +475,7 @@ class EmailFormatter:
             content: str = Path(note.file_path).read_text(encoding='utf-8', errors='ignore')
             
             # Create preview
-            preview: str = self._create_content_preview(content, max_preview_words)
+            preview: str = self._create_content_preview(content, max_preview_chars)
             
             # Note metadata
             file_name: str = Path(note.file_path).name
@@ -495,51 +494,83 @@ class EmailFormatter:
             logger.error(f"Error formatting note {note.file_path}: {e}")
             return f"Error loading note: {str(e)}\n"
     
-    def _create_content_preview(self, content: str, max_words: int) -> str:
-        """Create a preview of note content.
+    def _create_content_preview(self, content: str, max_chars: int = 300) -> str:
+        """Create a preview of note content with character-based truncation.
         
         Args:
             content: Full note content.
-            max_words: Maximum words in preview.
+            max_chars: Maximum characters in preview (default: 300).
             
         Returns:
-            Content preview.
+            Content preview truncated to max_chars with "..." if needed.
         """
-        words: List[str] = content.split()
+        # Remove extra whitespace and normalize
+        clean_content: str = ' '.join(content.split())
         
-        if len(words) <= max_words:
-            return content
+        # If content is short enough, return it in full
+        if len(clean_content) <= max_chars:
+            return clean_content
         
-        preview_words: List[str] = words[:max_words]
-        preview: str = " ".join(preview_words)
+        # Truncate to max_chars
+        truncated: str = clean_content[:max_chars].strip()
         
-        return preview + "..."
+        # Try to end at a word boundary to avoid cutting words in half
+        last_space: int = truncated.rfind(' ')
+        if last_space > max_chars * 0.8:  # Only break if we don't lose too much content
+            truncated = truncated[:last_space].strip()
+        
+        return truncated + "..."
     
     def _markdown_to_html(self, markdown_text: str) -> str:
-        """Convert markdown text to HTML.
+        """Convert markdown text to HTML with email-safe styling.
         
         Args:
             markdown_text: Markdown formatted text.
             
         Returns:
-            HTML formatted text.
+            HTML formatted text safe for email.
         """
         html_text: str = html.escape(markdown_text)
         
-        # Apply markdown patterns
-        for _, (regex, replacement) in self.MARKDOWN_PATTERNS.items():
+        # Apply limited markdown patterns (avoid conflicting with email styles)
+        # Only convert basic formatting, skip headers to prevent oversized text
+        limited_patterns = {
+            'bold': (re.compile(r'\*\*(.*?)\*\*'), r'<strong>\1</strong>'),
+            'italic': (re.compile(r'\*(.*?)\*'), r'<em>\1</em>'),
+            'code_inline': (re.compile(r'`([^`]+)`'), r'<code style="background-color: #f0f0f0; padding: 2px 4px; border-radius: 3px; font-family: monospace;">\1</code>'),
+            'link': (re.compile(r'\[([^\]]+)\]\(([^)]+)\)'), r'<a href="\2">\1</a>'),
+        }
+        
+        for _, (regex, replacement) in limited_patterns.items():
             html_text = regex.sub(replacement, html_text)
         
-        # Wrap bullet points in <ul> tags
-        if '<li>' in html_text:
-            html_text = re.sub(r'(<li>.*?</li>)', r'<ul>\1</ul>', html_text, flags=re.DOTALL)
-            # Clean up multiple consecutive <ul> tags
-            html_text = re.sub(r'</ul>\s*<ul>', '', html_text)
+        # Handle lists more carefully
+        lines = html_text.split('\n')
+        processed_lines: List[str] = []
+        in_list = False
         
-        # Convert line breaks to <br> tags
-        html_text = html_text.replace('\n', '<br>\n')
+        for line in lines:
+            # Check for bullet points
+            if re.match(r'^[\s]*[-*+]\s+', line):
+                content = re.sub(r'^[\s]*[-*+]\s+', '', line)
+                if not in_list:
+                    processed_lines.append('<ul>')
+                    in_list = True
+                processed_lines.append(f'<li>{content}</li>')
+            else:
+                if in_list:
+                    processed_lines.append('</ul>')
+                    in_list = False
+                # Convert line breaks to <br> for regular text
+                if line.strip():
+                    processed_lines.append(line + '<br>')
+                else:
+                    processed_lines.append('<br>')
         
-        return html_text
+        if in_list:
+            processed_lines.append('</ul>')
+        
+        return '\n'.join(processed_lines)
     
     def _format_freshness(self, days: int) -> str:
         """Format freshness information.
@@ -704,6 +735,132 @@ IMPORTANCE DISTRIBUTION:
         '''
         
         return text_email.strip()
+    
+    def _build_simple_html_email(
+        self,
+        subject: str,
+        notes_html: str,
+        stats: Dict[str, Any]
+    ) -> str:
+        """Build simple HTML email without complex styling.
+        
+        Args:
+            subject: Email subject.
+            notes_html: Notes content HTML.
+            stats: Email statistics.
+            
+        Returns:
+            Simple HTML email content.
+        """
+        current_date: str = datetime.now().strftime("%A, %B %d, %Y")
+        
+        # Simple, email-friendly HTML
+        html_email: str = f'''
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{html.escape(subject)}</title>
+            <style>
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 700px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    background-color: #f8f9fa;
+                }}
+                .container {{
+                    background-color: white;
+                    padding: 30px;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }}
+                .header {{
+                    text-align: center;
+                    border-bottom: 2px solid #e9ecef;
+                    padding-bottom: 20px;
+                    margin-bottom: 30px;
+                }}
+                .header h1 {{
+                    color: #495057;
+                    margin: 0;
+                    font-size: 24px;
+                }}
+                .stats {{
+                    background-color: #e7f3ff;
+                    padding: 15px;
+                    border-radius: 6px;
+                    margin-bottom: 30px;
+                    text-align: center;
+                    font-size: 14px;
+                }}
+                .note-group {{
+                    margin-bottom: 30px;
+                }}
+                .note {{
+                    background-color: #f8f9fa;
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    padding: 20px;
+                    margin-bottom: 20px;
+                }}
+                .note-title {{
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: #495057;
+                    margin: 0 0 10px 0;
+                }}
+                .note-meta {{
+                    color: #6c757d;
+                    font-size: 12px;
+                    margin-bottom: 15px;
+                }}
+                .note-content {{
+                    background-color: white;
+                    padding: 15px;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    line-height: 1.6;
+                }}
+                .footer {{
+                    text-align: center;
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 1px solid #e9ecef;
+                    color: #6c757d;
+                    font-size: 12px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>{html.escape(subject)}</h1>
+                    <p>{current_date}</p>
+                </div>
+                
+                <div class="stats">
+                    <strong>{stats['total_words']}</strong> words •
+                    <strong>~{stats['estimated_read_time']}</strong> min read •
+                    <strong>{stats['avg_score']:.1f}</strong> avg score
+                </div>
+                
+                <div class="content">
+                    {notes_html}
+                </div>
+                
+                <div class="footer">
+                    <p>Generated by Note Review Scheduler</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        '''
+        
+        return html_email.strip()
     
     def _get_email_css(self) -> str:
         """Get CSS styles for HTML email.

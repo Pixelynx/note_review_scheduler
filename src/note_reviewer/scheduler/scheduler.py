@@ -20,7 +20,7 @@ import schedule
 from loguru import logger
 
 from ..config.logging_config import StructuredLogger, LoggingConfig, LoggedOperation
-from ..database.operations import get_notes_not_sent_recently
+from ..database.operations import get_notes_not_sent_recently, record_email_sent
 from ..selection.selection_algorithm import SelectionAlgorithm, SelectionCriteria
 from ..selection.email_formatter import EmailFormatter
 from ..selection.content_analyzer import ContentAnalyzer
@@ -209,11 +209,20 @@ class NoteScheduler:
         # Setup schedule based on config
         self._setup_schedule()
         
-        # Start scheduler thread
-        self.scheduler_thread = threading.Thread(target=self._run_scheduler, daemon=True)
+        # Start scheduler thread (non-daemon so it keeps process alive)
+        self.scheduler_thread = threading.Thread(target=self._run_scheduler, daemon=False)
         self.scheduler_thread.start()
         
         logger.info("NoteScheduler started successfully")
+    
+    def wait_for_shutdown(self) -> None:
+        """Wait for scheduler to shutdown (blocking call)."""
+        if self.scheduler_thread and self.scheduler_thread.is_alive():
+            try:
+                self.scheduler_thread.join()
+            except KeyboardInterrupt:
+                logger.info("Shutdown requested via keyboard interrupt")
+                self.stop()
     
     def stop(self) -> None:
         """Stop the scheduler gracefully."""
@@ -255,6 +264,11 @@ class NoteScheduler:
         if self.config.schedule_type == ScheduleType.DAILY:
             schedule.every().day.at(self.config.time_of_day).do(job_func)  # type: ignore
             logger.info(f"Scheduled daily job at {self.config.time_of_day}")
+            
+            # Log next run time
+            next_run = schedule.next_run()
+            if next_run:
+                logger.info(f"Next scheduled run: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
             
         elif self.config.schedule_type == ScheduleType.WEEKLY:
             if not self.config.day_of_week:
@@ -367,30 +381,39 @@ class NoteScheduler:
         # Get candidate notes
         notes = get_notes_not_sent_recently(self.config.min_days_between_sends)
         
+        logger.info(f"Database query returned {len(notes)} candidate notes")
         if not notes:
             logger.info("No notes available for sending")
             return
         
         job.notes_processed = len(notes)
         
-        # Select best notes using algorithm
+        # Select best notes using algorithm with more permissive criteria
         criteria = SelectionCriteria(
             max_notes=self.config.max_notes_per_email,
-            max_email_length_chars=8000  # Reasonable email length
+            max_email_length_chars=20000,  # email length
+            min_word_count=5,
+            max_days_since_modification=365,
+            avoid_duplicates=False
         )
         
+        logger.info(f"Attempting to select up to {criteria.max_notes} notes from {len(notes)} candidates")
         selected_notes = self.selection_algorithm.select_notes(notes, criteria)
         
+        logger.info(f"Selection algorithm returned {len(selected_notes)} notes")
         if not selected_notes:
-            logger.info("No notes selected by algorithm")
+            logger.warning("No notes selected by algorithm - this may indicate selection criteria are too restrictive")
+            # Log details about candidate notes for debugging
+            for i, note in enumerate(notes[:5]):  # Log first 5 notes for debugging
+                logger.debug(f"Candidate note {i+1}: {note.file_path}, modified: {note.modified_at}")
             return
         
-        # Format email
+        # Format email with character-based preview (300 chars max)
         email_content = self.email_formatter.format_email(
             selected_notes,
             template_name="rich_review",
-            include_toc=True,
-            max_preview_words=50
+            include_toc=False,
+            max_preview_words=300
         )
         
         # Send email
@@ -417,8 +440,18 @@ class NoteScheduler:
             subject=email_content.subject,
             html_content=email_content.html_content,
             text_content=email_content.plain_text_content,
-            notes=notes_for_email
+            notes=notes_for_email,
+            attach_files=True  # Enable file attachments for full note content
         )
+        
+        # Record send history for each note
+        for note_score in selected_notes:
+            record_email_sent(
+                note_id=note_score.note_id,
+                sent_at=datetime.now(),
+                email_subject=email_content.subject,
+                notes_count_in_email=len(selected_notes)
+            )
         
         job.emails_sent = 1
         

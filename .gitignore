@@ -19,10 +19,13 @@ config.yml
 *.pem
 .secrets
 .env.local
+config/encrypted_config.json
+config/credentials.json
 
-# Logs (loguru output)
+# Logs
 *.log
 logs/
+REVIEW.md
 
 # IDE/Editor files
 .cursor

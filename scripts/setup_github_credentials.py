@@ -13,6 +13,20 @@ from pathlib import Path
 # Add project root to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Load environment variables from .env file if it exists
+try:
+    from dotenv import load_dotenv
+    
+    # Look for .env file in project root
+    env_file = Path(__file__).parent.parent / ".env"
+    if env_file.exists():
+        load_dotenv(env_file)
+        print(f"Loaded environment variables from {env_file}")
+    else:
+        print("No .env file found, using system environment variables")
+except ImportError:
+    print("python-dotenv not available, using system environment variables")
+
 from src.note_reviewer.security.credentials import CredentialManager, EmailCredentials, AppConfig
 from loguru import logger
 
@@ -54,7 +68,7 @@ def main() -> None:
         app_config = AppConfig(
             notes_directory=notes_directory,
             recipient_email=email_address,
-            schedule_time="09:00",  # Default to 9 AM
+            schedule_time="12:00",  # Default to noon
             notes_per_email=5
         )
         

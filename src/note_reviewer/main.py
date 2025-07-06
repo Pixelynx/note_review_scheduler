@@ -180,13 +180,23 @@ class NoteReviewApplication:
                 credential_manager=self.credential_manager
             )
             
-            # Start scheduler (daemon_mode not yet implemented)
-            if daemon_mode:
-                logger.warning("Daemon mode not yet implemented, starting in foreground")
-            
+            # Start scheduler
             self.scheduler.start()
             
-            return True
+            # Handle daemon mode
+            if daemon_mode:
+                logger.info("Scheduler started in daemon mode")
+                # In daemon mode, return immediately
+                return True
+            else:
+                logger.info("Scheduler started in foreground mode")
+                # In foreground mode, wait for shutdown
+                try:
+                    self.scheduler.wait_for_shutdown()
+                except KeyboardInterrupt:
+                    logger.info("Received keyboard interrupt, stopping scheduler...")
+                    self.scheduler.stop()
+                return True
             
         except Exception as e:
             logger.error(f"Failed to start scheduler: {e}")
