@@ -11,7 +11,7 @@ import os
 import signal
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Callable
 
 import typer
 from rich import print as rich_print
@@ -79,6 +79,124 @@ def setup_signal_handling() -> None:
     signal.signal(signal.SIGINT, signal_handler)
     if hasattr(signal, 'SIGTERM'):
         signal.signal(signal.SIGTERM, signal_handler)
+
+
+def validate_gmail_address(email: str) -> bool:
+    """Validate Gmail address format."""
+    return "@gmail.com" in email.lower() and "@" in email and "." in email
+
+
+def validate_email_address(email: str) -> bool:
+    """Validate general email address format."""
+    return "@" in email and "." in email and len(email) > 5
+
+
+def validate_time_format(time_str: str) -> bool:
+    """Validate HH:MM time format."""
+    try:
+        hour, minute = time_str.split(':')
+        hour_int, minute_int = int(hour), int(minute)
+        return 0 <= hour_int <= 23 and 0 <= minute_int <= 59
+    except (ValueError, AttributeError):
+        return False
+
+
+def get_validated_input(prompt: str, validator: Callable[[str], bool], error_message: str, default: Optional[str] = None) -> str:
+    """Get input with validation and retry loop."""
+    while True:
+        try:
+            if default:
+                value = typer.prompt(prompt, default=default)
+            else:
+                value = typer.prompt(prompt)
+            
+            if validator(value):
+                return value
+            else:
+                rich_print(f"[red]{error_message}[/red]")
+                continue
+                
+        except KeyboardInterrupt:
+            # Re-raise to be handled by setup function
+            raise
+
+
+def get_validated_int_input(prompt: str, min_val: Optional[int] = None, max_val: Optional[int] = None, default: Optional[int] = None) -> int:
+    """Get integer input with validation and retry loop."""
+    while True:
+        try:
+            if default is not None:
+                value = typer.prompt(prompt, default=default, type=int)
+            else:
+                value = typer.prompt(prompt, type=int)
+            
+            if min_val is not None and value < min_val:
+                rich_print(f"[red]Value must be at least {min_val}[/red]")
+                continue
+            if max_val is not None and value > max_val:
+                rich_print(f"[red]Value must be at most {max_val}[/red]")
+                continue
+            
+            return value
+            
+        except (ValueError, typer.BadParameter):
+            rich_print("[red]Please enter a valid number[/red]")
+            continue
+        except KeyboardInterrupt:
+            # Re-raise to be handled by setup function
+            raise
+
+
+def test_gmail_credentials_with_retry(gmail_username: str) -> tuple[str, str]:
+    """Test Gmail credentials with retry loop."""
+    gmail_app_password: str = ""
+    
+    while True:
+        try:
+            gmail_app_password = get_password_cross_platform("Gmail app password: ")
+            
+            # Test email credentials immediately
+            rich_print("\n[yellow]Testing Gmail credentials...[/yellow]")
+            from .email.service import EmailService, EmailConfig
+            
+            email_config = EmailConfig(
+                smtp_server="smtp.gmail.com",
+                smtp_port=587,
+                username=gmail_username,
+                password=gmail_app_password,
+                from_email=gmail_username,
+                from_name=gmail_username.split('@')[0].title(),
+                timeout_seconds=10
+            )
+            
+            email_service = EmailService(email_config)
+            
+            if email_service.test_connection():
+                rich_print("[green]Gmail credentials verified successfully![/green]")
+                return gmail_username, gmail_app_password
+            else:
+                rich_print("[red]Gmail credentials test failed![/red]")
+                rich_print("[red]The app password may be incorrect or expired.[/red]")
+                rich_print("\n[cyan]Gmail app password should be 16 characters in format: xxxx xxxx xxxx xxxx[/cyan]")
+                
+                if not typer.confirm("Do you want to retry entering your Gmail credentials?"):
+                    rich_print("[yellow]Continuing with unverified email credentials.[/yellow]")
+                    rich_print("[yellow]You can test the connection later with 'notes status'[/yellow]")
+                    return gmail_username, gmail_app_password
+                # Loop will continue for retry
+                
+        except Exception as e:
+            rich_print(f"[red]Gmail connection test failed: {e}[/red]")
+            rich_print("[red]This could be due to network issues or incorrect credentials.[/red]")
+            
+            if not typer.confirm("Do you want to retry entering your Gmail credentials?"):
+                rich_print("[yellow]Continuing with unverified email credentials.[/yellow]")
+                rich_print("[yellow]You can test the connection later with 'notes status'[/yellow]")
+                return gmail_username, gmail_app_password
+            # Loop will continue for retry
+        except KeyboardInterrupt:
+            # Re-raise to be handled by setup function
+            raise
 
 # Initialize CLI app
 app = typer.Typer(
@@ -181,104 +299,68 @@ def setup(
         rich_print("3. Generate an app password for 'Mail'")
         rich_print("4. Use that password below (not your regular Gmail password)")
         
-        gmail_username = typer.prompt("\nGmail address")
-        if "@gmail.com" not in gmail_username.lower():
-            rich_print("[red]Please enter a valid Gmail address[/red]")
-            raise typer.Exit(1)
-        
-        gmail_app_password = get_password_cross_platform("Gmail app password: ")
-        
-        # Test email credentials immediately
-        rich_print("\n[yellow]Testing Gmail credentials...[/yellow]")
-        from .email.service import EmailService, EmailConfig
-        
-        email_config = EmailConfig(
-            smtp_server="smtp.gmail.com",
-            smtp_port=587,
-            username=gmail_username,
-            password=gmail_app_password,
-            from_email=gmail_username,
-            from_name=gmail_username.split('@')[0].title(),
-            timeout_seconds=10
+        # Get Gmail address with validation
+        gmail_username = get_validated_input(
+            "\nGmail address",
+            validate_gmail_address,
+            "Please enter a valid Gmail address (must contain @gmail.com)"
         )
         
-        email_service = EmailService(email_config)
+        # Get Gmail credentials with testing and retry
+        gmail_username, gmail_app_password = test_gmail_credentials_with_retry(gmail_username)
         
-        try:
-            if email_service.test_connection():
-                rich_print("[green]Gmail credentials verified successfully![/green]")
-            else:
-                rich_print("[red]Gmail credentials test failed![/red]")
-                rich_print("[red]The app password may be incorrect or expired.[/red]")
-                rich_print("\n[cyan]Gmail app password should be 16 characters in format: xxxx xxxx xxxx xxxx[/cyan]")
-                
-                if typer.confirm("Do you want to retry entering your Gmail credentials?"):
-                    rich_print("\n[yellow]Please try again with your Gmail credentials...[/yellow]")
-                    return  # Exit setup to let user run it again
-                else:
-                    rich_print("[yellow]Continuing with unverified email credentials.[/yellow]")
-                    rich_print("[yellow]You can test the connection later with 'notes status'[/yellow]")
-        except Exception as e:
-            rich_print(f"[red]Gmail connection test failed: {e}[/red]")
-            rich_print("[red]This could be due to network issues or incorrect credentials.[/red]")
-            
-            if typer.confirm("Do you want to retry entering your Gmail credentials?"):
-                rich_print("\n[yellow]Please try again with your Gmail credentials...[/yellow]")
-                return  # Exit setup to let user run it again
-            else:
-                rich_print("[yellow]Continuing with unverified email credentials.[/yellow]")
-                rich_print("[yellow]You can test the connection later with 'notes status'[/yellow]")
-        
-        from_name = typer.prompt(
+        # Get display name with validation
+        from_name = get_validated_input(
             "Display name for emails",
+            lambda x: len(x.strip()) > 0,
+            "Display name cannot be empty",
             default=gmail_username.split('@')[0].title()
         )
         
-        # Get recipient email
-        recipient_email = typer.prompt(
+        # Get recipient email with validation
+        recipient_email = get_validated_input(
             "Email address to send note reviews to",
+            validate_email_address,
+            "Please enter a valid email address",
             default=gmail_username
         )
         
-        # Get notes directory
+        # Get notes directory with validation
         rich_print("\n[bold]Notes Configuration[/bold]")
         notes_dir = typer.prompt("Path to your notes directory")
         notes_path = Path(notes_dir).expanduser().resolve()
         
-        if not notes_path.exists():
+        # Validate/create notes directory with retry loop
+        while not notes_path.exists():
             if typer.confirm(f"Directory {notes_path} doesn't exist. Create it?"):
-                notes_path.mkdir(parents=True, exist_ok=True)
-                rich_print(f"[green]Created directory: {notes_path}[/green]")
+                try:
+                    notes_path.mkdir(parents=True, exist_ok=True)
+                    rich_print(f"[green]Created directory: {notes_path}[/green]")
+                    break
+                except Exception as e:
+                    rich_print(f"[red]Failed to create directory: {e}[/red]")
+                    notes_dir = typer.prompt("Please enter a different path")
+                    notes_path = Path(notes_dir).expanduser().resolve()
             else:
-                rich_print("[yellow]Setup cancelled - notes directory required.[/yellow]")
-                raise typer.Exit(1)
+                notes_dir = typer.prompt("Please enter a different path or existing directory")
+                notes_path = Path(notes_dir).expanduser().resolve()
         
-        # Get schedule configuration
+        # Get schedule configuration with validation
         rich_print("\n[bold]Schedule Configuration[/bold]")
-        schedule_time = typer.prompt(
+        schedule_time = get_validated_input(
             "Daily email time (HH:MM format)",
+            validate_time_format,
+            "Invalid time format. Please use HH:MM (24-hour format, e.g., 09:00 or 15:30)",
             default="09:00"
         )
         
-        # Validate time format
-        try:
-            hour, minute = schedule_time.split(':')
-            hour_int, minute_int = int(hour), int(minute)
-            if not (0 <= hour_int <= 23 and 0 <= minute_int <= 59):
-                raise ValueError()
-        except ValueError:
-            rich_print("[red]Invalid time format. Please use HH:MM (24-hour format)[/red]")
-            raise typer.Exit(1)
-        
-        notes_per_email = typer.prompt(
+        # Get notes per email with validation
+        notes_per_email = get_validated_int_input(
             "Maximum notes per email",
-            default=3,
-            type=int
+            min_val=1,
+            max_val=20,
+            default=3
         )
-        
-        if notes_per_email <= 0:
-            rich_print("[red]Notes per email must be positive[/red]")
-            raise typer.Exit(1)
         
         # Show configuration summary
         rich_print("\n[bold]Configuration Summary[/bold]")
@@ -365,6 +447,43 @@ def setup(
                             )
                 
                 rich_print(f"[green]Scanned {stats.scanned_files} notes successfully![/green]")
+        
+        # Ask if user wants to start the scheduler
+        rich_print("\n[bold]Scheduler Startup[/bold]")
+        if typer.confirm("Do you want to start the note scheduler now?"):
+            rich_print("\n[yellow]Starting scheduler...[/yellow]")
+            try:
+                # Initialize the application
+                from .main import NoteReviewApplication
+                app_instance = NoteReviewApplication(config_file)
+                
+                if app_instance.initialize(master_password):
+                    rich_print("[green]Application initialized successfully![/green]")
+                    rich_print("[cyan]Starting scheduler in foreground mode...[/cyan]")
+                    rich_print("[cyan]Press Ctrl+C to stop[/cyan]")
+                    
+                    try:
+                        success = app_instance.start_scheduler(daemon_mode=False)
+                        if success:
+                            rich_print("[green]Scheduler stopped gracefully[/green]")
+                        else:
+                            rich_print("[red]Failed to start scheduler[/red]")
+                    except KeyboardInterrupt:
+                        # Use the same confirmation pattern as the start command
+                        print("\nPress Enter to confirm exit, or Ctrl+C again to force quit...")
+                        try:
+                            input()
+                            rich_print("\n[yellow]Stopping scheduler...[/yellow]")
+                            app_instance.stop()
+                            rich_print("[green]Scheduler stopped[/green]")
+                        except KeyboardInterrupt:
+                            rich_print("\n[yellow]Force quit - scheduler terminated[/yellow]")
+                            app_instance.stop()
+                else:
+                    rich_print("[red]Failed to initialize application. You can start it later with 'notes start'[/red]")
+            except Exception as e:
+                rich_print(f"[red]Failed to start scheduler: {e}[/red]")
+                rich_print("[yellow]You can start it later with 'notes start'[/yellow]")
         
         # Success message
         rich_print("\n[bold green]Setup completed successfully![/bold green]")
@@ -453,13 +572,29 @@ def start(
                     rich_print("[red]Failed to start scheduler[/red]")
                     raise typer.Exit(1)
             except KeyboardInterrupt:
-                rich_print("\n[yellow]Stopping scheduler...[/yellow]")
-                app_instance.stop()
-                rich_print("[green]Scheduler stopped[/green]")
-                raise typer.Exit(0)
+                # Use the same confirmation pattern as setup and password functions
+                print("\nPress Enter to confirm exit, or Ctrl+C again to force quit...")
+                try:
+                    input()
+                    rich_print("\n[yellow]Stopping scheduler...[/yellow]")
+                    app_instance.stop()
+                    rich_print("[green]Scheduler stopped[/green]")
+                    raise typer.Exit(0)
+                except KeyboardInterrupt:
+                    rich_print("\n[yellow]Force quit - scheduler terminated[/yellow]")
+                    app_instance.stop()
+                    raise typer.Exit(0)
             
     except KeyboardInterrupt:
-        rich_print("\n[yellow]Scheduler stopped by user[/yellow]")
+        # Handle Ctrl+C during initialization phase
+        print("\nPress Enter to confirm exit, or Ctrl+C again to force quit...")
+        try:
+            input()
+            rich_print("\n[yellow]Scheduler startup cancelled by user[/yellow]")
+            raise typer.Exit(0)
+        except KeyboardInterrupt:
+            rich_print("\n[yellow]Force quit - scheduler startup terminated[/yellow]")
+            raise typer.Exit(0)
     except Exception as e:
         rich_print(f"[red]Failed to start scheduler: {e}[/red]")
         raise typer.Exit(1)

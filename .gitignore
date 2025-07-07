@@ -22,6 +22,12 @@ config.yml
 config/encrypted_config.json
 config/credentials.json
 
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+notes_scheduler.db
+
 # Logs
 *.log
 logs/
