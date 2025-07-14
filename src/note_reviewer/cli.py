@@ -362,6 +362,26 @@ def setup(
             default=3
         )
         
+        # Get email format type with validation
+        rich_print("\n[bold]Email Formatting[/bold]")
+        rich_print("[cyan]Choose email formatting style:[/cyan]")
+        rich_print("  1. [bold]PLAIN[/bold] - Clean text formatting (default)")
+        rich_print("  2. [bold]BIONIC[/bold] - Bold first half of words for ADHD focus") 
+        rich_print("  3. [bold]STYLED[/bold] - Enhanced visual hierarchy with rich formatting")
+        
+        format_choice = get_validated_int_input(
+            "Email format choice (1-3)",
+            min_val=1,
+            max_val=3,
+            default=1
+        )
+        
+        # Map choice to format type
+        format_types = {1: "plain", 2: "bionic", 3: "styled"}
+        email_format_type = format_types[format_choice]
+        
+        rich_print(f"[green]Selected format: {email_format_type.upper()}[/green]")
+        
         # Show configuration summary
         rich_print("\n[bold]Configuration Summary[/bold]")
         table = Table(show_header=True, header_style="bold magenta")
@@ -374,6 +394,7 @@ def setup(
         table.add_row("Notes Directory", str(notes_path))
         table.add_row("Schedule Time", schedule_time)
         table.add_row("Notes Per Email", str(notes_per_email))
+        table.add_row("Email Format", email_format_type.upper())
         
         console.print(table)
         
@@ -394,7 +415,8 @@ def setup(
             gmail_app_password=gmail_app_password,
             recipient_email=recipient_email,
             notes_directory=str(notes_path),
-            from_name=from_name
+            from_name=from_name,
+            email_format_type=email_format_type
         )
         
         # Update app config with schedule settings
@@ -410,7 +432,8 @@ def setup(
             email_template=current_config.email_template,
             attach_files=current_config.attach_files,
             log_level=current_config.log_level,
-            log_file=current_config.log_file
+            log_file=current_config.log_file,
+            email_format_type=email_format_type
         )
         
         manager.save_credentials(email_creds, updated_config)
