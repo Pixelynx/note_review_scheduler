@@ -19,12 +19,22 @@ config.yml
 *.pem
 .secrets
 .env.local
+config/encrypted_config.json
+config/credentials.json
 
-# Logs (loguru output)
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+notes_scheduler.db
+
+# Logs
 *.log
 logs/
+REVIEW.md
 
 # IDE/Editor files
+.cursor
 .vscode/
 .idea/
 *.swp
