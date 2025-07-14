@@ -8,8 +8,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
 from pathlib import Path
 from typing import Final, List
 import ssl
@@ -17,6 +15,11 @@ import ssl
 from loguru import logger
 
 from ..database.models import Note
+
+# Type checking import to avoid circular imports
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..selection.text_formatter import FlexibleTextFormatter
 
 
 class EmailError(Exception):
@@ -202,7 +205,9 @@ class EmailService:
         html_content: str,
         text_content: str,
         notes: List[Note],
-        attach_files: bool = False
+        attach_files: bool = True,
+        formatter: "FlexibleTextFormatter | None" = None,
+        embed_in_body: bool = True
     ) -> bool:
         """Send email with note content and optional file attachments.
         
@@ -213,6 +218,8 @@ class EmailService:
             text_content: Plain text version of email content.
             notes: List of notes being sent.
             attach_files: Whether to attach actual note files.
+            formatter: Optional text formatter for attachments.
+            embed_in_body: If True, embed formatted content in email body.
             
         Returns:
             True if email sent successfully, False otherwise.
@@ -237,13 +244,21 @@ class EmailService:
         
         logger.info(f"Sending email to {to_email} with {len(notes)} notes")
         
+        # If embedding in body, enhance email content with formatted notes
+        if embed_in_body and formatter and notes:
+            enhanced_html, enhanced_text = self._embed_formatted_notes_in_body(
+                html_content, text_content, notes, formatter
+            )
+            html_content = enhanced_html
+            text_content = enhanced_text
+        
         # Attempt to send with retry logic
         last_exception: Exception | None = None
         
         for attempt in range(1, self.config.retry_attempts + 1):
             try:
                 success: bool = self._attempt_send_email(
-                    to_email, subject, html_content, text_content, notes, attach_files
+                    to_email, subject, html_content, text_content, notes, attach_files, formatter
                 )
                 
                 if success:
@@ -267,6 +282,76 @@ class EmailService:
         
         return False
     
+    def _embed_formatted_notes_in_body(
+        self, 
+        html_content: str, 
+        text_content: str, 
+        notes: List[Note], 
+        formatter: "FlexibleTextFormatter"
+    ) -> tuple[str, str]:
+        """Embed formatted note content directly in email body for better Gmail compatibility.
+        
+        Args:
+            html_content: Original HTML email content.
+            text_content: Original text email content.
+            notes: Notes to embed.
+            formatter: Text formatter to apply.
+            
+        Returns:
+            Tuple of (enhanced_html_content, enhanced_text_content).
+        """
+        format_type = formatter.format_type.value
+        
+        # Generate embedded HTML content
+        embedded_html_parts = [
+            f'<div style="margin-top: 30px; border-top: 2px solid #e9ecef; padding-top: 20px;">',
+            f'<h2 style="color: #495057; margin-bottom: 20px;">Formatted Notes ({format_type.title()})</h2>'
+        ]
+        
+        # Generate embedded text content
+        embedded_text_parts = [
+            "\n" + "="*60,
+            f"FORMATTED NOTES ({format_type.upper()})",
+            "="*60 + "\n"
+        ]
+        
+        for i, note in enumerate(notes, 1):
+            try:
+                file_path = Path(note.file_path)
+                content = file_path.read_text(encoding='utf-8', errors='ignore')
+                
+                # Format content
+                formatted_content = formatter.format_text(content)
+                
+                # HTML version
+                content_style = self._get_inline_content_styles(format_type)
+                embedded_html_parts.extend([
+                    f'<div style="margin-bottom: 30px; border: 1px solid #dee2e6; border-radius: 6px; padding: 20px;">',
+                    f'<h3 style="margin: 0 0 15px 0; color: #343a40; font-size: 16px;">{i}. {file_path.name}</h3>',
+                    f'<div style="{content_style}">{formatted_content}</div>',
+                    '</div>'
+                ])
+                
+                # Text version  
+                embedded_text_parts.extend([
+                    f"{i}. {file_path.name}",
+                    "-" * 40,
+                    formatted_content if format_type == 'plain' else content,  # Use plain content for text version
+                    "-" * 40 + "\n"
+                ])
+                
+            except Exception as e:
+                logger.error(f"Error embedding note {note.file_path}: {e}")
+                continue
+        
+        embedded_html_parts.append('</div>')
+        
+        # Combine original content with embedded notes
+        enhanced_html = html_content + '\n'.join(embedded_html_parts)
+        enhanced_text = text_content + '\n'.join(embedded_text_parts)
+        
+        return enhanced_html, enhanced_text
+    
     def _attempt_send_email(
         self,
         to_email: str,
@@ -274,7 +359,8 @@ class EmailService:
         html_content: str,
         text_content: str,
         notes: List[Note],
-        attach_files: bool
+        attach_files: bool,
+        formatter: "FlexibleTextFormatter | None"
     ) -> bool:
         """Single attempt to send email.
         
@@ -313,7 +399,7 @@ class EmailService:
             
             # Add file attachments if requested
             if attach_files:
-                self._add_file_attachments(msg, notes)
+                self._add_file_attachments(msg, notes, formatter)
             
             # Send email
             server = self._create_connection()
@@ -333,12 +419,15 @@ class EmailService:
                 except Exception as e:
                     logger.warning(f"Error closing SMTP connection: {e}")
     
-    def _add_file_attachments(self, msg: MIMEMultipart, notes: List[Note]) -> None:
-        """Add note files as email attachments.
+    def _add_file_attachments(self, msg: MIMEMultipart, notes: List[Note], formatter: "FlexibleTextFormatter | None") -> None:
+        """Add note files as email attachments with format-appropriate content and extensions.
         
         Args:
             msg: Email message to add attachments to.
             notes: List of notes to attach.
+            formatter: Optional text formatter to apply to attachment content. 
+                      - Plain format: Creates plain text attachments (.txt)
+                      - Bionic/Styled formats: Creates HTML attachments (.html) with complete document structure
             
         Raises:
             EmailError: If attachment fails.
@@ -352,25 +441,47 @@ class EmailService:
                     continue
                 
                 # Read file content
-                with open(file_path, 'rb') as f:
-                    attachment: MIMEBase = MIMEBase('application', 'octet-stream')
-                    attachment.set_payload(f.read())
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
                 
-                # Encode file in ASCII characters
-                encoders.encode_base64(attachment)
+                # Determine attachment filename and content based on format
+                if formatter:
+                    # Apply formatting to content
+                    formatted_content = formatter.format_text(content)
+                    format_type = formatter.format_type.value
+                    
+                    if format_type == 'plain':
+                        # Plain format: Create plain text attachment
+                        attachment: MIMEText = MIMEText(formatted_content, 'plain', 'utf-8')
+                        # Keep original extension for plain text
+                        attachment_filename = file_path.name
+                    else:
+                        # Bionic/Styled formats: Create HTML attachment with complete document
+                        html_document = self._create_html_attachment_document(
+                            formatted_content, file_path.name, format_type
+                        )
+                        attachment: MIMEText = MIMEText(html_document, 'html', 'utf-8')
+                        # Change extension to .html for formatted content
+                        attachment_filename = file_path.stem + '.html'
+                    
+                else:
+                    # No formatter: Use original content as plain text
+                    attachment: MIMEText = MIMEText(content, 'plain', 'utf-8')
+                    attachment_filename = file_path.name
                 
-                # Add header
+                # Add header with appropriate filename
                 attachment.add_header(
                     'Content-Disposition',
-                    f'attachment; filename= {file_path.name}'
+                    f'attachment; filename="{attachment_filename}"'
                 )
                 
                 msg.attach(attachment)
-                logger.debug(f"Added attachment: {file_path.name}")
+                logger.debug(f"Added attachment: {attachment_filename}")
                 
             except Exception as e:
                 logger.error(f"Failed to attach file {note.file_path}: {e}")
                 # Continue with other attachments rather than failing completely
+                continue
     
     def test_connection(self) -> bool:
         """Test email service connectivity and authentication.
@@ -404,3 +515,92 @@ class EmailService:
             "max_emails_per_hour": self.rate_tracker.max_per_hour,
             "emails_remaining": max(0, self.rate_tracker.max_per_hour - len(recent_sends))
         } 
+
+    def _create_html_attachment_document(self, formatted_content: str, original_filename: str, format_type: str) -> str:
+        """Create a complete HTML document for email attachments with Gmail-friendly inline CSS.
+        
+        Args:
+            formatted_content: The formatted text content (with HTML tags).
+            original_filename: Original filename for title.
+            format_type: Format type used (for CSS selection).
+            
+        Returns:
+            Complete HTML document string with inline CSS for better Gmail compatibility.
+        """
+        # Extract base filename for title
+        base_filename = Path(original_filename).stem.replace('-', ' ').replace('_', ' ').title()
+        
+        # Get format-specific inline styles
+        content_style = self._get_inline_content_styles(format_type)
+        
+        html_document = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{base_filename}</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333; background-color: #ffffff; padding: 20px; margin: 0;">
+    <div style="max-width: 800px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); padding: 40px;">
+        <header style="border-bottom: 2px solid #e9ecef; padding-bottom: 20px; margin-bottom: 30px; text-align: center;">
+            <h1 style="color: #2c3e50; font-size: 28px; font-weight: 700; margin: 0 0 10px 0;">{base_filename}</h1>
+            <p style="color: #6c757d; font-size: 14px; font-style: italic; margin: 0;">Formatted with {format_type.upper()} styling</p>
+        </header>
+        
+        <main style="{content_style}">
+            {formatted_content}
+        </main>
+        
+        <footer style="border-top: 1px solid #e9ecef; padding-top: 20px; text-align: center; color: #6c757d; font-size: 12px; margin-top: 40px;">
+            <p style="margin: 0;">Generated by Note Review Scheduler</p>
+        </footer>
+    </div>
+</body>
+</html>'''
+        
+        return html_document
+    
+    def _get_inline_content_styles(self, format_type: str) -> str:
+        """Get inline CSS styles for note content based on format type.
+        
+        Args:
+            format_type: Format type (plain, bionic, styled).
+            
+        Returns:
+            Inline CSS styles string for the content container.
+        """
+        base_style = "min-height: 200px; margin-bottom: 40px;"
+        
+        if format_type.lower() == 'bionic':
+            return (base_style + " font-size: 18px; line-height: 1.8; letter-spacing: 0.02em; "
+                   "background-color: #fafbfc; padding: 25px; border-radius: 6px; "
+                   "border-left: 4px solid #007bff;")
+        
+        elif format_type.lower() == 'styled':
+            return (base_style + " font-size: 16px; line-height: 1.7; color: #2d3748; "
+                   "background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); "
+                   "border: 1px solid #e9ecef; border-radius: 8px; padding: 25px; "
+                   "box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);")
+        
+        else:  # plain format
+            return (base_style + " font-size: 16px; line-height: 1.6; color: #2d3748;")
+    
+    def _get_attachment_css_styles(self, format_type: str) -> str:
+        """Get CSS styles for attachment HTML documents (fallback for older method).
+        
+        Note: This method is now deprecated in favor of inline styles for better Gmail compatibility.
+        Keeping for backward compatibility.
+        
+        Args:
+            format_type: Format type (plain, bionic, styled).
+            
+        Returns:
+            CSS styles string.
+        """
+        # Simple fallback CSS for cases where the new inline method isn't used
+        return '''
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .note-content { padding: 20px; }
+        strong { font-weight: 700; color: #2c3e50; }
+        '''

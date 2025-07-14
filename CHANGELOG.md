@@ -2,20 +2,67 @@
 
 ### [Unreleased]
 
-### [2025-07-06]
+### [2025-07-13]
+#### Added
+- **Gmail Compatibility Improvements**: Enhanced email system to address Gmail's HTML attachment preview limitations
+  - `src/note_reviewer/selection/email_formatter.py`: Added `show_preview` parameter to control note content previews
+    - New `show_preview` parameter in `format_email()` method to conditionally display note previews
+    - Updated `_format_single_note_html()` and `_format_single_note_text()` methods to respect preview flag
+    - Prevents redundant content when full notes are embedded in email body
+    - Eliminates preview duplication for better Gmail compatibility and cleaner emails
+  - `src/note_reviewer/scheduler/scheduler.py`: Enhanced email generation to avoid content redundancy
+    - Automatically disables note previews when `embed_in_body=True` to prevent showing both previews and full content
+    - Improved email workflow: when embedding full content, previews are suppressed for cleaner presentation
+    - Better Gmail compatibility by reducing content duplication that could confuse users
+
+#### Changed
+- **Email Formatting System**: Fixed and enhanced all three formatting styles for proper attachment compatibility
+  - `src/note_reviewer/selection/text_formatter.py`: Corrected format implementations to work properly with attachments
+    - **Plain Format**: Fixed to return truly plain text without HTML escaping or `<br>` tags
+      - Now produces genuine plain text for attachments maintaining original file extensions
+      - Removed HTML formatting from list handling for consistent plain text output
+      - List items formatted with bullet points (•) and numbers without HTML markup
+    - **Bionic Format**: No changes - continues to work correctly with HTML formatting
+      - Maintains bold first-half word formatting with `<strong>` tags
+      - Produces complete HTML documents with enhanced typography and CSS styling
+      - Proper file extension conversion to `.html` for formatted attachments
+    - **Styled Format**: Enhanced to work properly with HTML document structure
+      - Improved visual hierarchy with better paragraph styling and header detection
+      - Added enhanced CSS styling with gradient backgrounds and visual flair
+      - Proper border styling, color schemes, and spacing for professional appearance
+      - Header-like paragraphs get blue underlines and increased font size
+      - Regular paragraphs get light background with red accent borders
+  - `src/note_reviewer/email/service.py`: Updated attachment handling for format-specific processing
+    - **Plain Format**: Creates plain text attachments with original file extensions
+    - **Bionic/Styled Formats**: Creates HTML attachments with complete document structure and .html extensions
+    - Enhanced CSS styling for Styled format with better visual hierarchy and professional appearance
+    - Updated default parameters: `attach_files=True` and `embed_in_body=True` for better Gmail compatibility
+
+- **Email Preview Control**: Implemented intelligent preview management to eliminate redundancy
+  - When `embed_in_body=True`, note previews are automatically disabled to avoid showing both preview snippets and full content
+  - Cleaner email presentation focusing on either previews OR full content, not both
+  - Better user experience by removing confusing duplicate information in emails
 
 #### Fixed
-- **Email Preview and Attachment System**: Enhanced email content delivery with better previews and full note access
-  - `src/note_reviewer/selection/email_formatter.py`: Updated content preview system from word-based to character-based truncation
-    - Changed `_create_content_preview()` to limit previews to exactly 300 characters with "..." when truncated
-    - Added intelligent word boundary detection to avoid cutting words in half (breaks at 80% of character limit)
-    - Normalized whitespace in preview content for cleaner display
-    - Updated all formatting methods (`_format_notes_html`, `_format_notes_text`, etc.) to use character-based limits
-  - `src/note_reviewer/scheduler/scheduler.py`: Enabled file attachments for complete note access
-    - Added `attach_files=True` to `send_notes_email()` calls to include full note files as email attachments
-    - Email now contains both shortened previews (300 chars) in the body AND full note content as downloadable attachments
-    - Attachment filenames match original note filenames (.txt, .md files)
-    - Full note content accessible without email size limitations through attachments
+- **Gmail Attachment Viewing Issues**: Addressed limitations with Gmail's HTML attachment preview system
+  - Implemented content embedding to work around Gmail desktop preview showing raw HTML code
+  - Added inline CSS styling for better Gmail compatibility across mobile and desktop
+  - Reduced content redundancy by intelligently controlling when to show previews vs full content
+  - Enhanced user experience by providing multiple viewing options for different email clients
+
+### [2025-07-06]
+#### Added
+- **HTML Attachment System**: Enhanced email attachments with format-specific document generation and file extension handling
+  - `src/note_reviewer/email/service.py`: Added comprehensive attachment system with format-appropriate content delivery
+    - Created `_create_html_attachment_document()` method for complete HTML document generation with proper DOCTYPE and structure
+    - Added `_get_attachment_css_styles()` method with format-specific CSS styling for BIONIC and STYLED formats
+    - Implemented responsive design with mobile optimization and professional document structure
+    - Added beautiful document layout with header, content area, and footer sections
+  - **Format-Specific File Extensions**: Intelligent attachment naming based on format type
+    - **Plain Format**: Maintains original file extensions (.txt, .md) with true plain text content
+    - **Bionic/Styled Formats**: Converts to `.html` extensions for proper browser rendering of formatted content
+    - Preserves original filename stem while adapting extension for format compatibility
+  - **Complete Document Structure**: Full HTML documents for formatted attachments with proper CSS integration
 
 ### [2025-07-05]
 #### Added
@@ -43,6 +90,61 @@
   - Database query result counts and candidate note details
   - Selection algorithm step-by-step logging showing filtering, scoring, and optimization results
   - Debug output for the first 5 candidate notes when selection fails
+
+- **Flexible Email Formatting System**: Comprehensive markdown cleaning and multiple formatting styles for enhanced readability
+  - `src/note_reviewer/selection/text_formatter.py`: New flexible text formatting module with extensible architecture
+    - `EmailFormatType` enum supporting PLAIN, BIONIC, and STYLED formatting with easy extensibility for future formats
+    - `MarkdownCleaner` class with comprehensive regex patterns for cleaning markdown while preserving lists
+    - Removes headers, bold/italic, code blocks, links, images, blockquotes, tables while preserving readability
+    - Intelligent list preservation for both bullet (`- item`) and numbered (`1. item`) lists with proper HTML formatting
+    - `TextFormatter` class with three distinct formatting styles:
+      - **PLAIN**: Clean text formatting with HTML escaping and line break conversion
+      - **BIONIC**: Bold first half of words for ADHD focus with punctuation handling and edge case support
+      - **STYLED**: Enhanced visual hierarchy with paragraph styling and header detection for improved readability
+    - `FlexibleTextFormatter` main interface with complete processing pipeline: Read → Clean → Format → Generate email
+    - Character-based truncation happens after markdown cleaning for accurate preview lengths
+    - Edge case handling for punctuation, numbers, special characters, and empty content
+    - Type-safe implementation using existing patterns with comprehensive error handling
+
+  - `src/note_reviewer/selection/email_formatter.py`: Updated email formatter to use flexible formatting system
+    - Replaced problematic `_markdown_to_html()` method (commented out as reference) with `FlexibleTextFormatter` integration  
+    - Added format type support to `format_email()` method with temporary format override capability
+    - Updated `_format_single_note_html()` and `_format_single_note_text()` to use new formatting pipeline
+    - Preserved attachment filename cleaning and subject line formatting consistency
+    - Enhanced error handling and logging for format type changes and processing failures
+
+  - `src/note_reviewer/security/credentials.py`: Added email format configuration support
+    - Added `email_format_type` field to `AppConfig` with validation for "plain", "bionic", "styled" values
+    - Updated `setup_wizard()` method to accept and store email format type during initial configuration
+    - Enhanced configuration validation with format type checking and error handling
+
+  - `src/note_reviewer/scheduler/scheduler.py`: Integrated format type selection from configuration  
+    - Added format type loading from app config with fallback to PLAIN format on errors
+    - Format type applied automatically to all scheduled email generation
+    - Graceful error handling when format type cannot be loaded from configuration
+
+- **Enhanced Setup Validation**: Comprehensive input validation with retry loops for robust configuration
+  - `src/note_reviewer/cli.py`: Added validation helper functions for foolproof setup process
+    - `validate_gmail_address()`, `validate_email_address()`, `validate_time_format()` for input validation
+    - `get_validated_input()` and `get_validated_int_input()` with retry loops for invalid inputs
+    - `test_gmail_credentials_with_retry()` for Gmail authentication testing with retry options
+    - All setup steps now validate input and prompt for corrections instead of exiting on invalid data
+    - Email format validation, time format validation (HH:MM), number range validation (1-20 notes per email)
+    - Directory creation with error handling and alternative path prompts
+
+  - **Email Format Selection in Setup**: Interactive format choice during configuration
+    - Added format type selection step with clear descriptions of PLAIN, BIONIC, and STYLED options
+    - Default to PLAIN format with numbered choices (1-3) for user-friendly selection
+    - Format choice validation with retry on invalid input and immediate feedback
+    - Configuration summary displays selected format type for confirmation
+    - Format type saved to configuration and applied automatically to all future emails
+
+- **Post-Setup Scheduler Launch**: Streamlined workflow from setup to running scheduler
+  - `src/note_reviewer/cli.py`: Added scheduler startup prompt at end of setup wizard
+    - After notes scan question, prompts "Do you want to start the note scheduler now? [y/n]"
+    - If 'y', immediately launches scheduler in foreground mode with proper Ctrl+C handling
+    - Eliminates need for separate `notes start` command after initial setup
+    - Complete end-to-end setup to running scheduler experience
 
 #### Changed
 - **GitHub Credentials Setup Script**: Enhanced environment variable loading capabilities

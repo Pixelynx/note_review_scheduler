@@ -408,12 +408,28 @@ class NoteScheduler:
                 logger.debug(f"Candidate note {i+1}: {note.file_path}, modified: {note.modified_at}")
             return
         
-        # Format email with character-based preview (300 chars max)
+        # Format email with character-based preview and selected format type
+        from ..selection.text_formatter import EmailFormatType
+        
+        # Get format type from app config
+        try:
+            _, app_config = self.credential_manager.load_credentials()
+            format_type = EmailFormatType.from_string(app_config.email_format_type)
+        except Exception as e:
+            logger.warning(f"Could not load email format type from config: {e}, using PLAIN")
+            format_type = EmailFormatType.PLAIN
+        
+        # Disable previews when embedding full content to avoid redundancy
+        embed_in_body = True  # We're embedding full content for better Gmail compatibility
+        show_preview = not embed_in_body  # Don't show previews when embedding full content
+        
         email_content = self.email_formatter.format_email(
             selected_notes,
             template_name="rich_review",
             include_toc=False,
-            max_preview_words=300
+            max_preview_words=300,  # char count
+            format_type=format_type,
+            show_preview=show_preview
         )
         
         # Send email
@@ -435,13 +451,19 @@ class NoteScheduler:
             for score in selected_notes
         ]
         
+        # Create formatter for attachments
+        from ..selection.text_formatter import FlexibleTextFormatter
+        formatter = FlexibleTextFormatter(format_type)
+        
         self.email_service.send_notes_email(
             to_email=app_config.recipient_email,
             subject=email_content.subject,
             html_content=email_content.html_content,
             text_content=email_content.plain_text_content,
             notes=notes_for_email,
-            attach_files=True  # Enable file attachments for full note content
+            attach_files=True,  # Enable file attachments for full note content
+            formatter=formatter,  # Pass formatter for attachment styling
+            embed_in_body=embed_in_body  # Embed full content for Gmail compatibility
         )
         
         # Record send history for each note

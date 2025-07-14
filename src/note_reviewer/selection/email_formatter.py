@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import html
-import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +12,7 @@ from loguru import logger
 
 from .selection_algorithm import NoteScore
 from .content_analyzer import NoteImportance
+from .text_formatter import FlexibleTextFormatter, EmailFormatType
 
 
 @dataclass(frozen=True)
@@ -54,22 +54,7 @@ class EmailContent:
 
 
 class EmailFormatter:
-    """Advanced email formatter with rich HTML and intelligent content organization."""
-    
-    # Markdown patterns for conversion
-    MARKDOWN_PATTERNS: Dict[str, Tuple[re.Pattern[str], str]] = {
-        'bold': (re.compile(r'\*\*(.*?)\*\*'), r'<strong>\1</strong>'),
-        'italic': (re.compile(r'\*(.*?)\*'), r'<em>\1</em>'),
-        'code_inline': (re.compile(r'`([^`]+)`'), r'<code>\1</code>'),
-        'code_block': (re.compile(r'```([\s\S]*?)```'), r'<pre><code>\1</code></pre>'),
-        'header1': (re.compile(r'^# (.+)$', re.MULTILINE), r'<h1>\1</h1>'),
-        'header2': (re.compile(r'^## (.+)$', re.MULTILINE), r'<h2>\1</h2>'),
-        'header3': (re.compile(r'^### (.+)$', re.MULTILINE), r'<h3>\1</h3>'),
-        'header4': (re.compile(r'^#### (.+)$', re.MULTILINE), r'<h4>\1</h4>'),
-        'link': (re.compile(r'\[([^\]]+)\]\(([^)]+)\)'), r'<a href="\2">\1</a>'),
-        'bullet': (re.compile(r'^[\s]*[-*+]\s+(.+)$', re.MULTILINE), r'<li>\1</li>'),
-        'numbered': (re.compile(r'^[\s]*\d+\.\s+(.+)$', re.MULTILINE), r'<li>\1</li>'),
-    }
+    """Advanced email formatter with flexible text formatting and intelligent content organization."""
     
     # Category classification patterns
     CATEGORY_PATTERNS: Dict[str, Set[str]] = {
@@ -81,16 +66,32 @@ class EmailFormatter:
         'Planning': {'plan', 'goal', 'strategy', 'roadmap', 'timeline', 'schedule', 'future'}
     }
     
-    def __init__(self) -> None:
-        """Initialize email formatter."""
-        logger.debug("Email formatter initialized")
+    def __init__(self, format_type: EmailFormatType = EmailFormatType.PLAIN) -> None:
+        """Initialize email formatter with specified format type.
+        
+        Args:
+            format_type: Email formatting style to use.
+        """
+        self.text_formatter = FlexibleTextFormatter(format_type)
+        logger.debug(f"Email formatter initialized with format: {format_type.value}")
+    
+    def set_format_type(self, format_type: EmailFormatType) -> None:
+        """Change the email formatting style.
+        
+        Args:
+            format_type: New formatting style to use.
+        """
+        self.text_formatter.set_format_type(format_type)
+        logger.debug(f"Email formatter format changed to: {format_type.value}")
     
     def format_email(
         self,
         selected_notes: List[NoteScore],
         template_name: str = "rich_review",
         include_toc: bool = False,  # Disable TOC by default for email compatibility
-        max_preview_words: int = 300
+        max_preview_words: int = 300,
+        format_type: EmailFormatType | None = None,
+        show_preview: bool = True
     ) -> EmailContent:
         """Format selected notes into a rich email.
         
@@ -99,6 +100,8 @@ class EmailFormatter:
             template_name: Email template to use.
             include_toc: Whether to include table of contents.
             max_preview_words: Maximum characters in note preview.
+            format_type: Override formatting style for this email.
+            show_preview: Whether to show note content previews (set to False when embedding full content).
             
         Returns:
             Complete formatted email content.
@@ -106,48 +109,59 @@ class EmailFormatter:
         if not selected_notes:
             raise ValueError("Cannot format email with no notes")
         
-        logger.info(f"Formatting email with {len(selected_notes)} notes")
+        # Temporarily change format type if specified
+        original_format = self.text_formatter.format_type
+        if format_type is not None:
+            self.text_formatter.set_format_type(format_type)
         
-        # Categorize and group notes
-        note_groups: List[NoteGroup] = self._categorize_notes(selected_notes)
-        
-        # Generate email subject
-        subject: str = self._generate_subject(selected_notes, note_groups)
-        
-        # Create table of contents (only for text version if requested)
-        toc_text: str = ""
-        if include_toc:
-            _, toc_text = self._generate_table_of_contents(note_groups)
-        
-        # Format note content
-        notes_html: str = self._format_notes_html(note_groups, max_preview_words)
-        notes_text: str = self._format_notes_text(note_groups, max_preview_words)
-        
-        # Generate email statistics
-        stats: Dict[str, Any] = self._generate_email_stats(selected_notes)
-        
-        # Build complete email content (use simple template approach)
-        html_content: str = self._build_simple_html_email(
-            subject, notes_html, stats
-        )
-        
-        plain_text_content: str = self._build_text_email(
-            subject, toc_text, notes_text, stats
-        )
-        
-        email_content: EmailContent = EmailContent(
-            html_content=html_content,
-            plain_text_content=plain_text_content,
-            subject=subject,
-            note_count=len(selected_notes),
-            total_word_count=sum(note.content_metrics.word_count for note in selected_notes),
-            categories=[group.category for group in note_groups],
-            importance_summary=stats['importance_summary'],
-            estimated_read_time_minutes=stats['estimated_read_time']
-        )
-        
-        logger.info(f"Email formatted: {len(selected_notes)} notes, ~{stats['estimated_read_time']}min read")
-        return email_content
+        try:
+            logger.info(f"Formatting email with {len(selected_notes)} notes using {self.text_formatter.format_type.value} format, show_preview={show_preview}")
+            
+            # Categorize and group notes
+            note_groups: List[NoteGroup] = self._categorize_notes(selected_notes)
+            
+            # Generate email subject with formatting
+            subject: str = self._generate_subject(selected_notes, note_groups)
+            
+            # Create table of contents (only for text version if requested)
+            toc_text: str = ""
+            if include_toc:
+                _, toc_text = self._generate_table_of_contents(note_groups)
+            
+            # Format note content with flexible formatting
+            notes_html: str = self._format_notes_html(note_groups, max_preview_words, show_preview)
+            notes_text: str = self._format_notes_text(note_groups, max_preview_words, show_preview)
+            
+            # Generate email statistics
+            stats: Dict[str, Any] = self._generate_email_stats(selected_notes)
+            
+            # Build complete email content (use simple template approach)
+            html_content: str = self._build_simple_html_email(
+                subject, notes_html, stats
+            )
+            
+            plain_text_content: str = self._build_text_email(
+                subject, toc_text, notes_text, stats
+            )
+            
+            email_content: EmailContent = EmailContent(
+                html_content=html_content,
+                plain_text_content=plain_text_content,
+                subject=subject,
+                note_count=len(selected_notes),
+                total_word_count=sum(note.content_metrics.word_count for note in selected_notes),
+                categories=[group.category for group in note_groups],
+                importance_summary=stats['importance_summary'],
+                estimated_read_time_minutes=stats['estimated_read_time']
+            )
+            
+            logger.info(f"Email formatted: {len(selected_notes)} notes, ~{stats['estimated_read_time']}min read, format: {self.text_formatter.format_type.value}")
+            return email_content
+            
+        finally:
+            # Restore original format type if it was temporarily changed
+            if format_type is not None:
+                self.text_formatter.set_format_type(original_format)
     
     def _categorize_notes(self, notes: List[NoteScore]) -> List[NoteGroup]:
         """Categorize notes into logical groups.
@@ -331,13 +345,15 @@ class EmailFormatter:
     def _format_notes_html(
         self, 
         groups: List[NoteGroup], 
-        max_preview_chars: int
+        max_preview_chars: int,
+        show_preview: bool
     ) -> str:
         """Format notes as rich HTML content.
         
         Args:
             groups: Categorized note groups.
             max_preview_chars: Maximum characters in preview.
+            show_preview: Whether to show note content previews.
             
         Returns:
             HTML formatted notes content.
@@ -362,7 +378,7 @@ class EmailFormatter:
             
             # Notes in group
             for j, note in enumerate(group.notes, 1):
-                note_content: str = self._format_single_note_html(note, max_preview_chars)
+                note_content: str = self._format_single_note_html(note, max_preview_chars, show_preview)
                 html_content += f'<div class="note" id="note-{i}-{j}">\n{note_content}\n</div>\n'
             
             html_content += '</div>\n\n'
@@ -372,45 +388,55 @@ class EmailFormatter:
     def _format_single_note_html(
         self, 
         note: NoteScore, 
-        max_preview_chars: int
+        max_preview_chars: int,
+        show_preview: bool
     ) -> str:
-        """Format a single note as HTML.
+        """Format a single note as HTML using flexible formatting.
         
         Args:
             note: Note to format.
             max_preview_chars: Maximum characters in preview.
+            show_preview: Whether to show note content previews.
             
         Returns:
             HTML formatted note.
         """
         try:
-            # Read note content
-            content: str = Path(note.file_path).read_text(encoding='utf-8', errors='ignore')
-            
-            # Create preview
-            preview: str = self._create_content_preview(content, max_preview_chars)
-            
-            # Convert markdown to HTML
-            html_preview: str = self._markdown_to_html(preview)
-            
             # Note metadata
             file_name: str = Path(note.file_path).name
             word_count: int = note.content_metrics.word_count
             freshness: str = self._format_freshness(note.content_metrics.freshness_days)
             
+            # Format filename with text formatter for subject-like text
+            formatted_filename: str = self.text_formatter.format_subject(file_name)
+            
+            # Create content section only if preview is enabled
+            content_section: str = ""
+            if show_preview:
+                # Read note content and create preview
+                content: str = Path(note.file_path).read_text(encoding='utf-8', errors='ignore')
+                preview: str = self._create_content_preview(content, max_preview_chars)
+                
+                # Apply only markdown cleaning to preview (no styling)
+                html_preview: str = self.text_formatter.cleaner.clean_markdown(preview)
+                # Convert to HTML-safe format for email display
+                html_preview = html.escape(html_preview).replace('\n', '<br>')
+                
+                content_section = f'''
+            <div class="note-content">
+                {html_preview}
+            </div>'''
+            
             # Build note HTML
             note_html: str = f'''
             <div class="note-header">
-                <h3 class="note-title">{html.escape(file_name)}</h3>
+                <h3 class="note-title">{html.escape(formatted_filename)}</h3>
                 <div class="note-metadata">
                     <span class="word-count">{word_count} words</span>
                     <span class="freshness">{freshness}</span>
                     <span class="score">Score: {note.total_score:.1f}</span>
                 </div>
-            </div>
-            <div class="note-content">
-                {html_preview}
-            </div>
+            </div>{content_section}
             '''
             
             return note_html
@@ -422,13 +448,15 @@ class EmailFormatter:
     def _format_notes_text(
         self, 
         groups: List[NoteGroup], 
-        max_preview_chars: int
+        max_preview_chars: int,
+        show_preview: bool
     ) -> str:
         """Format notes as plain text content.
         
         Args:
             groups: Categorized note groups.
             max_preview_chars: Maximum characters in preview.
+            show_preview: Whether to show note content previews.
             
         Returns:
             Plain text formatted notes.
@@ -449,7 +477,7 @@ class EmailFormatter:
             
             # Notes in group
             for j, note in enumerate(group.notes, 1):
-                note_content: str = self._format_single_note_text(note, max_preview_chars)
+                note_content: str = self._format_single_note_text(note, max_preview_chars, show_preview)
                 text_content += f"{i}.{j} {note_content}\n\n"
             
             text_content += "\n"
@@ -459,34 +487,42 @@ class EmailFormatter:
     def _format_single_note_text(
         self, 
         note: NoteScore, 
-        max_preview_chars: int
+        max_preview_chars: int,
+        show_preview: bool
     ) -> str:
-        """Format a single note as plain text.
+        """Format a single note as plain text using flexible formatting.
         
         Args:
             note: Note to format.
             max_preview_chars: Maximum characters in preview.
+            show_preview: Whether to show note content previews.
             
         Returns:
             Plain text formatted note.
         """
         try:
-            # Read note content
-            content: str = Path(note.file_path).read_text(encoding='utf-8', errors='ignore')
-            
-            # Create preview
-            preview: str = self._create_content_preview(content, max_preview_chars)
-            
             # Note metadata
             file_name: str = Path(note.file_path).name
             word_count: int = note.content_metrics.word_count
             freshness: str = self._format_freshness(note.content_metrics.freshness_days)
             
-            # Build note text
-            note_text: str = f"{file_name}\n"
+            # Clean filename for plain text
+            clean_filename: str = self.text_formatter.format_subject(file_name)
+            
+            # Build note text header
+            note_text: str = f"{clean_filename}\n"
             note_text += f"Words: {word_count} | {freshness} | Score: {note.total_score:.1f}\n"
             note_text += "-" * 50 + "\n"
-            note_text += preview + "\n"
+            
+            # Add content preview only if show_preview is True
+            if show_preview:
+                # Read note content and create preview
+                content: str = Path(note.file_path).read_text(encoding='utf-8', errors='ignore')
+                preview: str = self._create_content_preview(content, max_preview_chars)
+                
+                # Clean markdown from preview for plain text output
+                clean_preview: str = self.text_formatter.cleaner.clean_markdown(preview)
+                note_text += clean_preview + "\n"
             
             return note_text
             
@@ -521,56 +557,60 @@ class EmailFormatter:
         
         return truncated + "..."
     
-    def _markdown_to_html(self, markdown_text: str) -> str:
-        """Convert markdown text to HTML with email-safe styling.
-        
-        Args:
-            markdown_text: Markdown formatted text.
-            
-        Returns:
-            HTML formatted text safe for email.
-        """
-        html_text: str = html.escape(markdown_text)
-        
-        # Apply limited markdown patterns (avoid conflicting with email styles)
-        # Only convert basic formatting, skip headers to prevent oversized text
-        limited_patterns = {
-            'bold': (re.compile(r'\*\*(.*?)\*\*'), r'<strong>\1</strong>'),
-            'italic': (re.compile(r'\*(.*?)\*'), r'<em>\1</em>'),
-            'code_inline': (re.compile(r'`([^`]+)`'), r'<code style="background-color: #f0f0f0; padding: 2px 4px; border-radius: 3px; font-family: monospace;">\1</code>'),
-            'link': (re.compile(r'\[([^\]]+)\]\(([^)]+)\)'), r'<a href="\2">\1</a>'),
-        }
-        
-        for _, (regex, replacement) in limited_patterns.items():
-            html_text = regex.sub(replacement, html_text)
-        
-        # Handle lists more carefully
-        lines = html_text.split('\n')
-        processed_lines: List[str] = []
-        in_list = False
-        
-        for line in lines:
-            # Check for bullet points
-            if re.match(r'^[\s]*[-*+]\s+', line):
-                content = re.sub(r'^[\s]*[-*+]\s+', '', line)
-                if not in_list:
-                    processed_lines.append('<ul>')
-                    in_list = True
-                processed_lines.append(f'<li>{content}</li>')
-            else:
-                if in_list:
-                    processed_lines.append('</ul>')
-                    in_list = False
-                # Convert line breaks to <br> for regular text
-                if line.strip():
-                    processed_lines.append(line + '<br>')
-                else:
-                    processed_lines.append('<br>')
-        
-        if in_list:
-            processed_lines.append('</ul>')
-        
-        return '\n'.join(processed_lines)
+    # NOTE: Old markdown processing method - replaced by FlexibleTextFormatter
+    # This method was causing issues with email formatting and oversized text
+    # Keeping as reference for potential future improvements
+    #
+    # def _markdown_to_html(self, markdown_text: str) -> str:
+    #     """Convert markdown text to HTML with email-safe styling.
+    #     
+    #     Args:
+    #         markdown_text: Markdown formatted text.
+    #         
+    #     Returns:
+    #         HTML formatted text safe for email.
+    #     """
+    #     html_text: str = html.escape(markdown_text)
+    #     
+    #     # Apply limited markdown patterns (avoid conflicting with email styles)
+    #     # Only convert basic formatting, skip headers to prevent oversized text
+    #     limited_patterns = {
+    #         'bold': (re.compile(r'\*\*(.*?)\*\*'), r'<strong>\1</strong>'),
+    #         'italic': (re.compile(r'\*(.*?)\*'), r'<em>\1</em>'),
+    #         'code_inline': (re.compile(r'`([^`]+)`'), r'<code style="background-color: #f0f0f0; padding: 2px 4px; border-radius: 3px; font-family: monospace;">\1</code>'),
+    #         'link': (re.compile(r'\[([^\]]+)\]\(([^)]+)\)'), r'<a href="\2">\1</a>'),
+    #     }
+    #     
+    #     for _, (regex, replacement) in limited_patterns.items():
+    #         html_text = regex.sub(replacement, html_text)
+    #     
+    #     # Handle lists more carefully
+    #     lines = html_text.split('\n')
+    #     processed_lines: List[str] = []
+    #     in_list = False
+    #     
+    #     for line in lines:
+    #         # Check for bullet points
+    #         if re.match(r'^[\s]*[-*+]\s+', line):
+    #             content = re.sub(r'^[\s]*[-*+]\s+', '', line)
+    #             if not in_list:
+    #                 processed_lines.append('<ul>')
+    #                 in_list = True
+    #             processed_lines.append(f'<li>{content}</li>')
+    #         else:
+    #             if in_list:
+    #                 processed_lines.append('</ul>')
+    #                 in_list = False
+    #             # Convert line breaks to <br> for regular text
+    #             if line.strip():
+    #                 processed_lines.append(line + '<br>')
+    #             else:
+    #                 processed_lines.append('<br>')
+    #     
+    #     if in_list:
+    #         processed_lines.append('</ul>')
+    #     
+    #     return '\n'.join(processed_lines)
     
     def _format_freshness(self, days: int) -> str:
         """Format freshness information.

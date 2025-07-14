@@ -44,27 +44,34 @@ class EmailCredentials:
 
 @dataclass(frozen=True)
 class AppConfig:
-    """Application configuration including non-sensitive settings."""
+    """Application configuration settings."""
     notes_directory: str
     recipient_email: str
-    database_path: str = "notes_scheduler.db"
-    schedule_time: str = "13:00"  # Daily at 1 PM
+    database_path: str = "data/notes.db"
+    schedule_time: str = "09:00"
     notes_per_email: int = 3
-    email_template: str = "notes_review"
+    email_template: str = "rich_review"
+    email_format_type: str = "plain"  # Email formatting style: plain, bionic, styled
     attach_files: bool = False
     log_level: str = "INFO"
-    log_file: str = "note_scheduler.log"
+    log_file: str = "logs/note_scheduler.log"
     
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
         if not self.notes_directory.strip():
             raise ValueError("Notes directory cannot be empty")
-        if not self.recipient_email.strip():
-            raise ValueError("Recipient email cannot be empty")
-        if "@" not in self.recipient_email:
+        if not self.recipient_email.strip() or "@" not in self.recipient_email:
             raise ValueError("Recipient email must be a valid email address")
+        if not (0 <= int(self.schedule_time.split(':')[0]) <= 23):
+            raise ValueError("Schedule time hour must be between 0 and 23")
+        if not (0 <= int(self.schedule_time.split(':')[1]) <= 59):
+            raise ValueError("Schedule time minute must be between 0 and 59")
         if self.notes_per_email <= 0:
             raise ValueError("Notes per email must be positive")
+        if self.email_format_type.lower() not in ["plain", "bionic", "styled"]:
+            raise ValueError("Email format type must be 'plain', 'bionic', or 'styled'")
+        if self.log_level not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+            raise ValueError("Log level must be a valid logging level")
 
 
 class CredentialManager:
@@ -321,7 +328,8 @@ class CredentialManager:
         gmail_app_password: str,
         recipient_email: str,
         notes_directory: str,
-        from_name: str = ""
+        from_name: str = "",
+        email_format_type: str = "plain"
     ) -> CredentialManager:
         """Setup wizard for initial credential configuration.
         
@@ -333,6 +341,7 @@ class CredentialManager:
             recipient_email: Email address to send notes to.
             notes_directory: Directory containing note files.
             from_name: Display name for sender.
+            email_format_type: Email formatting style (plain, bionic, styled).
             
         Returns:
             Configured CredentialManager instance.
@@ -353,7 +362,8 @@ class CredentialManager:
             # Create app configuration
             app_config: AppConfig = AppConfig(
                 notes_directory=notes_directory,
-                recipient_email=recipient_email
+                recipient_email=recipient_email,
+                email_format_type=email_format_type
             )
             
             # Create credential manager and save
