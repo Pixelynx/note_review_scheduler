@@ -52,7 +52,7 @@ class ScheduleConfig:
     
     # Schedule settings
     schedule_type: ScheduleType = ScheduleType.DAILY
-    time_of_day: str = "22:15"  # HH:MM format
+    time_of_day: str = "12:00"  # HH:MM format
     day_of_week: Optional[str] = None  # For weekly: monday, tuesday, etc.
     interval_hours: int = 24  # For every_n_hours
     
