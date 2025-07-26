@@ -1,0 +1,51 @@
+When implementing new features, follow these architectural principles:
+- Use the DTO pattern to separate API models from persistence entities
+- Implement domain-driven design where appropriate
+- Follow SOLID principles, especially single responsibility
+- Use the specification pattern for complex queries
+
+When adding or modifying security-related features:
+- Ensure proper authentication for all protected endpoints
+- Implement proper authorization with role-based access control
+- Use proper password hashing with BCrypt
+- Implement proper token validation and refreshing
+- Follow OWASP security guidelines for REST APIs
+
+When implementing data-intensive operations:
+- Use pagination for collection endpoints 
+- Implement caching where appropriate (with Redis or Spring's caching abstraction)
+- Consider using reactive programming for high-throughput endpoints
+- Implement database indexing strategy
+
+For each new feature, implement:
+- Unit tests for service logic
+- Integration tests for controllers
+- Repository tests with test containers
+- End-to-end tests for critical user journeys
+- Use BDDMockito style for clearer test arrangements
+
+Implement consistent exception handling:
+- Create a centralized exception handler using @RestControllerAdvice
+- Define custom exceptions for different error scenarios
+- Return standardized error responses across the API
+- Include proper validation error responses
+
+When implementing e-commerce specific features, consider:
+- Event-driven architecture for order processing
+- Idempotent API design for payment operations
+- Optimistic locking for inventory management
+- Distributed session management for cart operations
+- Proper handling of money using specialized libraries like JavaMoney
+
+Design with scalability in mind:
+- Stateless service design
+- Use message queues for asynchronous processing
+- Implement database sharding strategy
+- Consider CQRS pattern for read/write separation
+
+Enhance developer experience with:
+- Comprehensive API documentation
+- Environment-specific configurations
+- Docker Compose setup for local development
+- Clear logging strategy with structured logs
+- Proper actuator endpoints for monitoring

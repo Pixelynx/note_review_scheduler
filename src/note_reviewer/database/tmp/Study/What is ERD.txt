@@ -1,0 +1,67 @@
+ERD stands for "Entity-Relationship Diagram" in this context. It's a crucial database design tool that helps you visualize and plan the data structure for your e-commerce application before you start coding.
+
+## What is an ERD?
+
+An ERD is a flowchart that illustrates how different "entities" (database tables) relate to one another within your system. For your Pink Fridat Nails e-commerce site, your ERD would show:
+
+1. What tables you'll need (Users, Products, Orders, etc.)
+2. What fields each table will contain
+3. How the tables connect to each other (relationships)
+4. The type of relationships (one-to-many, many-to-many, etc.)
+
+## Why It's Important
+
+For week 1, the project outline specifically asks for an ERD because:
+
+1. It forces you to think through your data structure before writing code
+2. It helps identify potential issues with your database design early
+3. It serves as a reference when building both your backend and frontend
+4. It's a common industry practice in software development
+
+## What Your ERD Should Include
+
+Based on your e-commerce requirements, your ERD should include tables for:
+
+- Users (for authentication)
+- Products (nail products/services)
+- Categories (product groupings)
+- Orders (completed purchases)
+- Order_Items (individual items in an order)
+- Cart_Items (items in a user's cart)
+
+## Example Relationships
+
+- A User can have many Orders (one-to-many)
+- An Order belongs to one User (many-to-one)
+- An Order can have many Order_Items (one-to-many)
+- A Product can be in many Order_Items (one-to-many)
+
+## Tools to Create ERDs
+
+You can create your ERD using:
+- [Lucidchart](https://www.lucidchart.com/) (has free tier)
+- [draw.io](https://app.diagrams.net/) (free)
+- [dbdiagram.io](https://dbdiagram.io/) (free tier available)
+- [MySQL Workbench](https://www.mysql.com/products/workbench/) (if using MySQL)
+
+
+### Example
+<function_calls>
+<invoke name="artifacts">
+<parameter name="id">ecommerce-erd</parameter>
+<parameter name="type">application/vnd.ant.mermaid</parameter>
+<parameter name="title">Pink Fridat Nails E-commerce ERD</parameter>
+<parameter name="command">create</parameter>
+<parameter name="content">erDiagram
+USERS {
+int user_id PK
+string email
+string password_hash
+string first_name
+string last_name
+string phone
+datetime created_at
+datetime updated_at
+}
+</parameter>
+</invoke>
