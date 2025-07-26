@@ -68,6 +68,10 @@ jobs:
       env:
         MAX_NOTES: ${{ github.event.inputs.max_notes || '5' }}
         FORCE_SEND: ${{ github.event.inputs.force_send || 'false' }}
+        MASTER_PASSWORD: ${{ secrets.MASTER_PASSWORD }}
+        EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+        EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+        NOTES_DIRECTORY: ${{ secrets.NOTES_DIRECTORY }}
       run: |
         if [ "$FORCE_SEND" = "true" ]; then
           python scripts/run_scheduled_job.py \
