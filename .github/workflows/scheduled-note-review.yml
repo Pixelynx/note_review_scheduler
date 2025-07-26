@@ -69,10 +69,16 @@ jobs:
         MAX_NOTES: ${{ github.event.inputs.max_notes || '5' }}
         FORCE_SEND: ${{ github.event.inputs.force_send || 'false' }}
       run: |
-        python scripts/run_scheduled_job.py \
-          --max-notes "$MAX_NOTES" \
-          --force-send "$FORCE_SEND" \
-          --log-level INFO
+        if [ "$FORCE_SEND" = "true" ]; then
+          python scripts/run_scheduled_job.py \
+            --max-notes "$MAX_NOTES" \
+            --force-send \
+            --log-level INFO
+        else
+          python scripts/run_scheduled_job.py \
+            --max-notes "$MAX_NOTES" \
+            --log-level INFO
+        fi
           
     - name: Archive logs
       uses: actions/upload-artifact@v4
