@@ -53,6 +53,7 @@ jobs:
       run: |
         mkdir -p data
         mkdir -p logs
+        mkdir -p config
         
     - name: Decrypt and setup credentials
       env:
