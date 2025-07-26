@@ -3,7 +3,7 @@ name: Scheduled Note Review
 on:
   schedule:
     # Run daily at 12:00 PM UTC (adjust timezone as needed)
-    - cron: '* 12 * * *'
+    - cron: '0 12 * * *'
   
   # Allow manual triggering
   workflow_dispatch:
@@ -74,7 +74,7 @@ jobs:
           --log-level INFO
           
     - name: Archive logs
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: execution-logs
@@ -87,7 +87,7 @@ jobs:
         python scripts/backup_database.py --upload-to-artifacts
         
     - name: Upload database backup
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: success()
       with:
         name: database-backup
