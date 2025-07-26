@@ -42,6 +42,14 @@ def main() -> None:
         backup_dir = Path(args.output_dir) if args.output_dir else Path("data/backups")
         backup_system = DatabaseBackup(backup_directory=backup_dir)
         
+        # Check if database exists
+        if not backup_system.database_path.exists():
+            logger.warning(f"No database found at {backup_system.database_path}. Nothing to backup.")
+            if args.upload_to_artifacts:
+                # Ensure backup directory exists for artifacts even if empty
+                backup_dir.mkdir(parents=True, exist_ok=True)
+            return
+
         # Create backup
         logger.info("Starting database backup...")
         backup_file = backup_system.create_backup(
