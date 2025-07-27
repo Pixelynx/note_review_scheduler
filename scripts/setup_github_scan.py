@@ -76,12 +76,14 @@ def discover_repository_notes(repo_root: Path) -> List[Path]:
         repo_root / "notes",
         repo_root / "docs", 
         repo_root / "wiki",
-        repo_root / "content"
+        repo_root / "content",
+        repo_root / "src" / "note_reviewer" / "database" / "tmp" / "Study"
     ]
     
     found_dirs = []
     for dir_path in potential_dirs:
         if dir_path.exists() and has_supported_files(dir_path, recursive=True):
+            logger.info(f"Found notes directory: {dir_path}")
             found_dirs.append(dir_path)
             
     return found_dirs
@@ -261,9 +263,9 @@ def setup_github_scanning(
             repo_notes_dirs = [notes_path]
             logger.info(f"Using configured notes directory: {notes_path}")
         else:
-            logger.warning("No notes directory configured, attempting auto-discovery")
+            logger.info("No notes directory configured, attempting auto-discovery")
             if is_github_actions():
-                print("::warning::No notes directory configured, attempting auto-discovery")
+                print("::notice::No notes directory configured, attempting auto-discovery")
             repo_notes_dirs = discover_repository_notes(Path('.'))
             
         if not repo_notes_dirs:
@@ -271,6 +273,10 @@ def setup_github_scanning(
             if is_github_actions():
                 print("::warning::No note directories found in repository")
             return True
+        else:
+            logger.info(f"Found {len(repo_notes_dirs)} note directories:")
+            for dir_path in repo_notes_dirs:
+                logger.info(f"  - {dir_path}")
             
         # Initialize scanner with all features
         scanner = FileScanner(
@@ -289,6 +295,7 @@ def setup_github_scanning(
         }
         
         for notes_directory in repo_notes_dirs:
+            logger.info(f"Scanning directory: {notes_directory}")
             success, stats = run_with_github_formatting(notes_directory, database_path, scanner)
             if success:
                 # Aggregate statistics
@@ -297,6 +304,7 @@ def setup_github_scanning(
                 all_stats["error_files"] += stats.get("error_files", 0)
                 all_stats["database_updates"] += stats.get("database_updates", 0)
                 all_stats["scan_duration_seconds"] += stats.get("scan_duration_seconds", 0)
+                logger.info(f"Successfully scanned {stats.get('scanned_files', 0)} files in {notes_directory}")
         
         # 4. Set GitHub outputs
         set_github_outputs(all_stats)
