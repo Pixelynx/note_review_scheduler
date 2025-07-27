@@ -54,6 +54,7 @@ jobs:
         mkdir -p data
         mkdir -p logs
         mkdir -p config
+        mkdir -p artifacts
         
     - name: Decrypt and setup credentials
       env:
@@ -63,6 +64,27 @@ jobs:
         NOTES_DIRECTORY: ${{ secrets.NOTES_DIRECTORY }}
       run: |
         python scripts/setup_github_credentials.py
+        
+    - name: Run GitHub Actions scan
+      id: scan
+      env:
+        MASTER_PASSWORD: ${{ secrets.MASTER_PASSWORD }}
+        NOTES_DIRECTORY: ${{ secrets.NOTES_DIRECTORY }}
+      run: |
+        python scripts/setup_github_scan.py
+        
+    - name: Upload scan report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: scan-report
+        path: artifacts/scan_report.json
+        retention-days: 30
+        
+    - name: Check scan status
+      if: steps.scan.outputs.scan-status == 'warning'
+      run: |
+        echo "::warning::Note scanning completed with warnings. Check scan report for details."
         
     - name: Initialize database
       env:
@@ -84,6 +106,8 @@ jobs:
         EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
         EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
         NOTES_DIRECTORY: ${{ secrets.NOTES_DIRECTORY }}
+        SCAN_FILES_SCANNED: ${{ steps.scan.outputs.files-scanned }}
+        SCAN_DATABASE_UPDATES: ${{ steps.scan.outputs.database-updates }}
       run: |
         if [ "$FORCE_SEND" = "true" ]; then
           python scripts/run_scheduled_job.py \
@@ -101,7 +125,9 @@ jobs:
       if: always()
       with:
         name: execution-logs
-        path: logs/
+        path: |
+          logs/
+          artifacts/
         retention-days: 30
         
     - name: Backup database
