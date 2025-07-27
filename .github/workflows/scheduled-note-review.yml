@@ -55,6 +55,12 @@ jobs:
         mkdir -p logs
         mkdir -p config
         mkdir -p artifacts
+     
+    # For testing purposes
+    - name: Clean database
+      run: |
+        rm -f data/notes.db
+        rm -f data/notes_tracker.db  # Remove both possible DB paths for safety
         
     - name: Decrypt and setup credentials
       id: creds

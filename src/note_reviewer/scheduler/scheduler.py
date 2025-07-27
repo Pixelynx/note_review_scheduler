@@ -109,7 +109,11 @@ class NoteScheduler:
             self.structured_logger = None
 
     def run_job_now(self) -> str:
-        """Run a note review job immediately."""
+        """Run a note review job immediately.
+        
+        Returns:
+            str: The ID of the created job.
+        """
         job_id = f"manual_{int(time.time())}"
         
         # Initialize job before starting thread
@@ -122,32 +126,6 @@ class NoteScheduler:
         # Set job running state
         self.is_job_running = True
         
-        try:
-            # Start job in background thread
-            thread = threading.Thread(target=self._execute_job, args=(job_id,))
-            thread.start()
-            
-            # Wait briefly to ensure job starts
-            time.sleep(0.1)
-            
-            # Update status to running
-            if self._current_job and self._current_job.status == JobStatus.INITIALIZING:
-                self._current_job.status = JobStatus.RUNNING
-            
-            return job_id
-            
-        except Exception as e:
-            # Handle initialization failure
-            if self._current_job:
-                self._current_job.status = JobStatus.FAILED
-                self._current_job.error = str(e)
-                self._current_job.completion_time = datetime.now()
-                self._job_history.append(self._current_job)
-            self.is_job_running = False
-            raise
-
-    def _execute_job(self, job_id: str) -> None:
-        """Execute a single note review job."""
         try:
             # First try to get notes that have never been sent
             notes = get_notes_never_sent(db_path=DATABASE_PATH)
@@ -165,7 +143,7 @@ class NoteScheduler:
                 if self._current_job:
                     self._current_job.status = JobStatus.COMPLETED
                     self._current_job.completion_time = datetime.now()
-                return
+                return job_id
             
             # Score and select notes
             criteria = SelectionCriteria(max_notes=self.config.max_notes_per_email)
@@ -176,7 +154,10 @@ class NoteScheduler:
                 if self._current_job:
                     self._current_job.status = JobStatus.COMPLETED
                     self._current_job.completion_time = datetime.now()
-                return
+                return job_id
+                
+            # Get the actual Note objects for selected notes
+            selected_notes = [note for note in notes if note.id in [scored.note_id for scored in scored_notes]]
             
             # Format email content
             email_content = self.email_formatter.format_email(scored_notes)
@@ -203,8 +184,8 @@ class NoteScheduler:
                 subject=email_content.subject,
                 html_content=email_content.html_content,
                 text_content=email_content.plain_text_content,
-                notes=notes,
-                attach_files=True,
+                notes=selected_notes,
+                attach_files=app_config.attach_files,
                 embed_in_body=True,
                 formatter=self.email_formatter.text_formatter
             )
@@ -230,6 +211,8 @@ class NoteScheduler:
             # Update last run date
             self._last_run_date = datetime.now()
             
+            return job_id
+            
         except Exception as e:
             logger.error(f"Job execution failed: {e}")
             if self._current_job:
@@ -237,6 +220,7 @@ class NoteScheduler:
                 self._current_job.error = str(e)
                 self._current_job.completion_time = datetime.now()
                 self._job_history.append(self._current_job)
+            return job_id
         finally:
             self.is_job_running = False
 
