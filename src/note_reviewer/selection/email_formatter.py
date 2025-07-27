@@ -91,7 +91,7 @@ class EmailFormatter:
         include_toc: bool = False,  # Disable TOC by default for email compatibility
         max_preview_words: int = 300,
         format_type: EmailFormatType | None = None,
-        show_preview: bool = True
+        show_preview: bool = False
     ) -> EmailContent:
         """Format selected notes into a rich email.
         

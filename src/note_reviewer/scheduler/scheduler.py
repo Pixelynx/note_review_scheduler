@@ -94,8 +94,12 @@ class NoteScheduler:
         # Initialize components
         self.content_analyzer = ContentAnalyzer()
         self.selection_algorithm = SelectionAlgorithm(self.content_analyzer)
-        self.email_formatter = EmailFormatter()
-        
+
+        # Get email format type from config
+        _, app_config = credential_manager.load_credentials()
+        from ..selection.text_formatter import EmailFormatType
+        self.email_formatter = EmailFormatter(format_type=EmailFormatType.from_string(app_config.email_format_type))
+
         # Setup logging
         try:
             logging_config = LoggingConfig()
@@ -201,7 +205,8 @@ class NoteScheduler:
                 text_content=email_content.plain_text_content,
                 notes=notes,
                 attach_files=True,
-                embed_in_body=True
+                embed_in_body=True,
+                formatter=self.email_formatter.text_formatter
             )
             
             # Record successful send

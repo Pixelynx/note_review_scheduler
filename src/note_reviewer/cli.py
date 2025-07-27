@@ -855,7 +855,7 @@ def scan(
 
 @app.command()
 def send(
-    max_notes: int = typer.Option(3, "--max-notes", "-n", help="Maximum notes to send"),
+    max_notes: Optional[int] = typer.Option(None, "--max-notes", "-n", help="Maximum notes to send (defaults to configured value)"),
     force: bool = typer.Option(False, "--force", "-f", help="Send even if sent recently"),
     preview: bool = typer.Option(False, "--preview", "-p", help="Preview email without sending"),
 ) -> None:
@@ -865,6 +865,10 @@ def send(
     # Get configuration
     credential_manager = get_credential_manager()
     email_creds, app_config = credential_manager.load_credentials()
+
+    # Use configured max_notes if not specified
+    if max_notes is None:
+        max_notes = app_config.notes_per_email
     
     try:
         # Get notes to send
@@ -902,11 +906,12 @@ def send(
         from .selection.selection_algorithm import SelectionAlgorithm, SelectionCriteria
         from .selection.email_formatter import EmailFormatter
         from .email.service import EmailService, EmailConfig
+        from .selection.text_formatter import EmailFormatType
         
         # Set up components
         content_analyzer = ContentAnalyzer()
         selection_algorithm = SelectionAlgorithm(content_analyzer)
-        email_formatter = EmailFormatter()
+        email_formatter = EmailFormatter(format_type=EmailFormatType.from_string(app_config.email_format_type))
         
         # Create email service
         email_config = EmailConfig(
@@ -943,7 +948,8 @@ def send(
                 text_content=email_content.plain_text_content,
                 notes=notes,
                 attach_files=True,
-                embed_in_body=True
+                embed_in_body=True,
+                formatter=email_formatter.text_formatter
             )
             
             # Record successful send
