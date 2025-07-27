@@ -57,6 +57,7 @@ jobs:
         mkdir -p artifacts
         
     - name: Decrypt and setup credentials
+      id: creds
       env:
         MASTER_PASSWORD: ${{ secrets.MASTER_PASSWORD }}
         EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
@@ -64,27 +65,10 @@ jobs:
         NOTES_DIRECTORY: ${{ secrets.NOTES_DIRECTORY }}
       run: |
         python scripts/setup_github_credentials.py
-        
-    - name: Run GitHub Actions scan
-      id: scan
-      env:
-        MASTER_PASSWORD: ${{ secrets.MASTER_PASSWORD }}
-        NOTES_DIRECTORY: ${{ secrets.NOTES_DIRECTORY }}
-      run: |
-        python scripts/setup_github_scan.py
-        
-    - name: Upload scan report
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: scan-report
-        path: artifacts/scan_report.json
-        retention-days: 30
-        
-    - name: Check scan status
-      if: steps.scan.outputs.scan-status == 'warning'
-      run: |
-        echo "::warning::Note scanning completed with warnings. Check scan report for details."
+        if [ ! -f "config/credentials.json" ]; then
+          echo "::error::Credentials file was not created"
+          exit 1
+        fi
         
     - name: Initialize database
       env:
@@ -97,6 +81,34 @@ jobs:
         from src.note_reviewer.database.operations import initialize_database
         initialize_database(Path('data/notes_tracker.db'))
         "
+        
+    - name: Run GitHub Actions scan
+      id: scan
+      if: success()
+      env:
+        MASTER_PASSWORD: ${{ secrets.MASTER_PASSWORD }}
+        NOTES_DIRECTORY: ${{ secrets.NOTES_DIRECTORY }}
+      run: |
+        # Verify credentials exist
+        if [ ! -f "config/credentials.json" ]; then
+          echo "::error::Credentials file not found. Ensure setup completed successfully."
+          exit 1
+        fi
+        python scripts/setup_github_scan.py
+        
+    - name: Upload scan report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: scan-report
+        path: artifacts/scan_report.json
+        retention-days: 30
+        if-no-files-found: warn
+        
+    - name: Check scan status
+      if: steps.scan.outputs.scan-status == 'warning'
+      run: |
+        echo "::warning::Note scanning completed with warnings. Check scan report for details."
         
     - name: Run note review job
       env:
