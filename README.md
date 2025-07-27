@@ -643,3 +643,47 @@ For support, please use GitHub Issues with:
 - Complete error messages
 - Steps to reproduce issues
 - Configuration details (without sensitive data)
+
+### GitHub Actions Configuration
+
+The system can be automated using GitHub Actions with the following considerations:
+
+1. **Timezone Configuration**
+   - GitHub Actions uses UTC (Coordinated Universal Time)
+   - You need to convert your local time to UTC when setting the schedule
+   - Example conversions for New York (ET):
+     ```
+     Local Time (ET)  |  UTC Time (Workflow Config)
+     -----------------|--------------------------
+     9:00 AM ET      |  13:00 UTC (EDT) or 14:00 UTC (EST)
+     12:00 PM ET     |  16:00 UTC (EDT) or 17:00 UTC (EST)
+     3:00 PM ET      |  19:00 UTC (EDT) or 20:00 UTC (EST)
+     ```
+   - To update the schedule:
+     1. Edit `.github/workflows/scheduled-note-review.yml`
+     2. Modify the cron expression: `cron: '0 16 * * *'` (for 12 PM EDT)
+   - Common timezone offsets:
+     ```
+     Timezone        | UTC Offset
+     ----------------|------------
+     Eastern (ET)    | UTC-4 (EDT) / UTC-5 (EST)
+     Central (CT)    | UTC-5 (CDT) / UTC-6 (CST)
+     Mountain (MT)   | UTC-6 (MDT) / UTC-7 (MST)
+     Pacific (PT)    | UTC-7 (PDT) / UTC-8 (PST)
+     ```
+
+2. **Directory Configuration**
+   - Set `NOTES_DIRECTORY` secret for custom directory location
+   - Default auto-discovery of standard directories (notes/, docs/, etc.)
+
+3. **Required Secrets**
+   ```
+   MASTER_PASSWORD      # Encryption master password
+   EMAIL_ADDRESS       # Gmail address
+   EMAIL_APP_PASSWORD  # Gmail app password
+   NOTES_DIRECTORY    # Optional: Custom notes directory
+   ```
+
+4. **Manual Trigger**
+   - Use GitHub Actions UI to trigger workflow manually
+   - Set custom parameters like max notes and force send
