@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Union
 from loguru import logger
 
 from ..config.logging_config import StructuredLogger, LoggingConfig, LoggedOperation
-from ..database.operations import get_notes_not_sent_recently, record_email_sent, initialize_database, DATABASE_PATH
+from ..database.operations import get_notes_not_sent_recently, record_email_sent, initialize_database, DATABASE_PATH, get_notes_never_sent
 from ..selection.selection_algorithm import SelectionAlgorithm, SelectionCriteria
 from ..selection.email_formatter import EmailFormatter
 from ..selection.content_analyzer import ContentAnalyzer
@@ -145,11 +145,16 @@ class NoteScheduler:
     def _execute_job(self, job_id: str) -> None:
         """Execute a single note review job."""
         try:
-            # Get notes not sent recently
-            notes = get_notes_not_sent_recently(
-                days=self.config.min_days_between_sends,
-                db_path=DATABASE_PATH
-            )
+            # First try to get notes that have never been sent
+            notes = get_notes_never_sent(db_path=DATABASE_PATH)
+            
+            # If no never-sent notes, try notes not sent recently
+            if not notes:
+                logger.info("No never-sent notes found, checking for notes not sent recently")
+                notes = get_notes_not_sent_recently(
+                    days=self.config.min_days_between_sends,
+                    db_path=DATABASE_PATH
+                )
             
             if not notes:
                 logger.info("No notes due for review")
@@ -158,29 +163,54 @@ class NoteScheduler:
                     self._current_job.completion_time = datetime.now()
                 return
             
-            # Select notes for this email
-            selected_notes = self.selection_algorithm.select_notes(
-                notes,
-                SelectionCriteria(max_notes=self.config.max_notes_per_email)
-            )
+            # Score and select notes
+            criteria = SelectionCriteria(max_notes=self.config.max_notes_per_email)
+            scored_notes = self.selection_algorithm.select_notes(notes, criteria)
             
-            if not selected_notes:
+            if not scored_notes:
                 logger.info("No notes selected for review")
                 if self._current_job:
                     self._current_job.status = JobStatus.COMPLETED
                     self._current_job.completion_time = datetime.now()
                 return
             
-            # Format and send email
-            email_content = self.email_formatter.format_email(selected_notes)
+            # Format email content
+            email_content = self.email_formatter.format_email(scored_notes)
+            
+            # Get email credentials
+            email_creds, app_config = self.credential_manager.load_credentials()
+            
+            # Create email service
+            from ..email.service import EmailService, EmailConfig
+            
+            email_config = EmailConfig(
+                smtp_server=email_creds.smtp_server,
+                smtp_port=email_creds.smtp_port,
+                username=email_creds.username,
+                password=email_creds.password,
+                from_email=email_creds.username,
+                from_name=email_creds.from_name
+            )
+            email_service = EmailService(email_config)
+            
+            # Send email
+            email_service.send_notes_email(
+                to_email=app_config.recipient_email,
+                subject=email_content.subject,
+                html_content=email_content.html_content,
+                text_content=email_content.plain_text_content,
+                notes=notes,
+                attach_files=True,
+                embed_in_body=True
+            )
             
             # Record successful send
-            for note in selected_notes:
+            for note in scored_notes:
                 record_email_sent(
                     note_id=note.note_id,
                     sent_at=datetime.now(),
                     email_subject=email_content.subject,
-                    notes_count_in_email=len(selected_notes),
+                    notes_count_in_email=len(scored_notes),
                     db_path=DATABASE_PATH
                 )
             

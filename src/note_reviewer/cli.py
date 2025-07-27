@@ -12,13 +12,14 @@ import signal
 import sys
 from pathlib import Path
 from typing import Any, Optional, Callable
+from datetime import datetime
 
 import typer
 from rich import print as rich_print
 from rich.console import Console
 from rich.table import Table
 
-from .database.operations import get_notes_never_sent, get_notes_not_sent_recently, add_or_update_note
+from .database.operations import get_notes_never_sent, get_notes_not_sent_recently, add_or_update_note, record_email_sent
 from .security.credentials import CredentialManager
 from .scanner.file_scanner import FileScanner
 from .selection.selection_algorithm import SelectionAlgorithm
@@ -863,7 +864,7 @@ def send(
     
     # Get configuration
     credential_manager = get_credential_manager()
-    _, app_config = credential_manager.load_credentials()
+    email_creds, app_config = credential_manager.load_credentials()
     
     try:
         # Get notes to send
@@ -896,17 +897,65 @@ def send(
             if not typer.confirm("\nSend email with these notes?"):
                 return
         
-        # Initialize selection and email systems
-        content_analyzer = ContentAnalyzer()
-        SelectionAlgorithm(content_analyzer)  # Would be used in full implementation
+        # Initialize components
+        from .selection.content_analyzer import ContentAnalyzer
+        from .selection.selection_algorithm import SelectionAlgorithm, SelectionCriteria
+        from .selection.email_formatter import EmailFormatter
+        from .email.service import EmailService, EmailConfig
         
-        # Note: EmailService expects EmailConfig, not EmailCredentials
-        # This would need proper config conversion in full implementation
+        # Set up components
+        content_analyzer = ContentAnalyzer()
+        selection_algorithm = SelectionAlgorithm(content_analyzer)
+        email_formatter = EmailFormatter()
+        
+        # Create email service
+        email_config = EmailConfig(
+            smtp_server=email_creds.smtp_server,
+            smtp_port=email_creds.smtp_port,
+            username=email_creds.username,
+            password=email_creds.password,
+            from_email=email_creds.username,
+            from_name=email_creds.from_name
+        )
+        email_service = EmailService(email_config)
+        
+        # Score and select notes
+        criteria = SelectionCriteria(max_notes=max_notes)
+        scored_notes = selection_algorithm.select_notes(notes, criteria)
+        
         rich_print("\n[yellow]Generating email content...[/yellow]")
+        
+        # Format email content
+        email_content = email_formatter.format_email(scored_notes)
         
         if preview:
             rich_print("[blue]Email preview generated (not sent)[/blue]")
+            rich_print("\n[bold]Subject:[/bold]")
+            rich_print(email_content.subject)
+            rich_print("\n[bold]Plain Text Content:[/bold]")
+            rich_print(email_content.plain_text_content)
         else:
+            # Send email
+            email_service.send_notes_email(
+                to_email=app_config.recipient_email,
+                subject=email_content.subject,
+                html_content=email_content.html_content,
+                text_content=email_content.plain_text_content,
+                notes=notes,
+                attach_files=True,
+                embed_in_body=True
+            )
+            
+            # Record successful send
+            for note in notes:
+                record_email_sent(
+                    note_id=note.id,
+                    sent_at=datetime.now(),
+                    email_subject=email_content.subject,
+                    notes_count_in_email=len(notes),
+                    db_path=db_path
+                )
+            
             rich_print("[green]Email sent successfully![/green]")
             
     except Exception as e:
