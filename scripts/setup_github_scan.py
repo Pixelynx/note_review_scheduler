@@ -98,7 +98,7 @@ def setup_credentials_from_environment() -> Tuple[bool, Optional[CredentialManag
                 print("::error::MASTER_PASSWORD secret not configured")
             return False, None
         
-        config_file = Path("config/credentials.json")
+        config_file = Path("config/encrypted_config.json")
         credential_manager = CredentialManager(config_file, master_password)
         
         # Load and validate credentials
