@@ -19,7 +19,7 @@ from .selection.content_analyzer import ContentAnalyzer
 from .selection.selection_algorithm import SelectionAlgorithm
 from .selection.email_formatter import EmailFormatter
 from .security.credentials import CredentialManager
-from .scheduler.scheduler import NoteScheduler, ScheduleConfig, ScheduleType
+from .scheduler import NoteScheduler, ScheduleConfig, ScheduleType
 from .scheduler.monitor import HealthMonitor
 
 

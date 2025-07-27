@@ -16,10 +16,9 @@ from typing import Any, Optional, Callable
 import typer
 from rich import print as rich_print
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from .database.operations import get_notes_never_sent, get_notes_not_sent_recently
+from .database.operations import get_notes_never_sent, get_notes_not_sent_recently, add_or_update_note
 from .security.credentials import CredentialManager
 from .scanner.file_scanner import FileScanner
 from .selection.selection_algorithm import SelectionAlgorithm
@@ -762,6 +761,7 @@ def scan(
     directory: Optional[str] = typer.Argument(None, help="Directory to scan (default: configured notes directory)"),
     recursive: bool = typer.Option(True, "--recursive/--no-recursive", "-r", help="Scan subdirectories"),
     update_db: bool = typer.Option(True, "--update-db/--no-update-db", help="Update database with scan results"),
+    debug: bool = typer.Option(False, "--debug", help="Enable debug mode for detailed error information")
 ) -> None:
     """Scan notes directory for files."""
     rich_print("\n[bold blue]Scanning Notes[/bold blue]")
@@ -781,20 +781,18 @@ def scan(
     scanner = FileScanner(
         extract_tags=True,
         extract_links=True,
-        generate_summary=True
+        generate_summary=True,
+        debug=debug
     )
     
     try:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console
-        ) as progress:
-            task = progress.add_task("Scanning files...", total=None)
-            
-            results, stats = scanner.scan_directory(scan_dir, recursive=recursive)
-            
-            progress.update(task, description="Scan complete")
+        # Simple progress message
+        rich_print("[yellow]Scanning files...[/yellow]")
+        
+        # Run scan
+        results, stats = scanner.scan_directory(scan_dir, recursive=recursive)
+        
+        rich_print("[green]Scan complete![/green]")
         
         # Display results
         table = Table(title=f"Scan Results: {scan_dir}", show_header=True, header_style="bold magenta")
@@ -816,14 +814,41 @@ def scan(
             for format_name, count in stats.formats_found.items():
                 rich_print(f"  - {format_name}: {count} files")
         
+        # In debug mode, show any errors encountered
+        if debug and stats.error_files > 0:
+            rich_print("\n[bold red]Files with Errors:[/bold red]")
+            for result in results:
+                if not result.is_valid:
+                    rich_print(f"  - {result.file_path}: {result.error_message}")
+        
         # Update database if requested
         if update_db and results:
             rich_print(f"\n[yellow]Updating database with {len(results)} scan results...[/yellow]")
-            # Implementation would add/update notes in database
+            
+            for result in results:
+                if result.is_valid:
+                    try:
+                        add_or_update_note(
+                            file_path=result.file_path,
+                            content_hash=result.content_hash,
+                            file_size=result.file_size,
+                            created_at=result.created_at,
+                            modified_at=result.modified_at,
+                            db_path=Path(app_config.database_path)
+                        )
+                    except Exception as e:
+                        if debug:
+                            rich_print(f"[red]Failed to add {result.file_path} to database: {e}[/red]")
+                        continue
+            
             rich_print("[green]Database updated successfully.[/green]")
             
     except Exception as e:
         rich_print(f"[red]Scan failed: {e}[/red]")
+        if debug:
+            import traceback
+            rich_print("\n[red]Debug traceback:[/red]")
+            rich_print(traceback.format_exc())
         raise typer.Exit(1)
 
 
