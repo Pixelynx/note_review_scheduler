@@ -2,9 +2,9 @@ name: Scheduled Note Review
 
 on:
   schedule:
-    # Run daily at 5:00 PM UTC (1:00 PM EDT / 12:00 PM EST)
+    # Run daily at 18:55 UTC (2:55 PM EDT / 1:55 PM EST)
     # To change for your timezone, see README.md#github-actions-configuration
-    - cron: '40 19 * * *'
+    - cron: '55 18 * * *'
   
   # Allow manual triggering
   workflow_dispatch:
