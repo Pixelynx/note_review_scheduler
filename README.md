@@ -678,12 +678,24 @@ The system can be automated using GitHub Actions with the following consideratio
 
 3. **Required Secrets**
    ```
-   MASTER_PASSWORD      # Encryption master password
-   EMAIL_ADDRESS       # Gmail address
-   EMAIL_APP_PASSWORD  # Gmail app password
-   NOTES_DIRECTORY    # Optional: Custom notes directory
+   MASTER_PASSWORD          # Encryption master password
+   EMAIL_ADDRESS           # Gmail address
+   EMAIL_APP_PASSWORD      # Gmail app password
+   NOTES_DIRECTORY        # Optional: Custom notes directory
+   MAX_NOTES_PER_EMAIL    # Optional: Maximum notes per email (default: 5)
    ```
 
-4. **Manual Trigger**
+4. **Configuration Priority**
+   - Manual workflow trigger inputs override repository secrets
+   - Repository secrets override default values
+   - Default values:
+     ```
+     MAX_NOTES_PER_EMAIL = 5
+     FORCE_SEND = false
+     ```
+
+5. **Manual Trigger**
    - Use GitHub Actions UI to trigger workflow manually
-   - Set custom parameters like max notes and force send
+   - Available parameters:
+     - `max_notes`: Override number of notes to send
+     - `force_send`: Send even if notes were recently sent

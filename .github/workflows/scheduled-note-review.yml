@@ -2,9 +2,9 @@ name: Scheduled Note Review
 
 on:
   schedule:
-    # Run daily at 18:55 UTC (2:55 PM EDT / 1:55 PM EST)
+    # Run daily at 5:00 PM UTC (1:00 PM EDT / 12:00 PM EST)
     # To change for your timezone, see README.md#github-actions-configuration
-    - cron: '55 18 * * *'
+    - cron: '0 17 * * *'
   
   # Allow manual triggering
   workflow_dispatch:
@@ -119,7 +119,7 @@ jobs:
         
     - name: Run note review job
       env:
-        MAX_NOTES: ${{ github.event.inputs.max_notes || '5' }}
+        MAX_NOTES: ${{ github.event.inputs.max_notes || secrets.MAX_NOTES_PER_EMAIL || '5' }}
         FORCE_SEND: ${{ github.event.inputs.force_send || 'false' }}
         MASTER_PASSWORD: ${{ secrets.MASTER_PASSWORD }}
         EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
