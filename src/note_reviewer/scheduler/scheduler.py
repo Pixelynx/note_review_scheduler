@@ -10,7 +10,7 @@ from __future__ import annotations
 import signal
 import time
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -20,7 +20,7 @@ import schedule
 from loguru import logger
 
 from ..config.logging_config import StructuredLogger, LoggingConfig, LoggedOperation
-from ..database.operations import get_notes_not_sent_recently, record_email_sent
+from ..database.operations import get_notes_not_sent_recently, record_email_sent, initialize_database, DATABASE_PATH
 from ..selection.selection_algorithm import SelectionAlgorithm, SelectionCriteria
 from ..selection.email_formatter import EmailFormatter
 from ..selection.content_analyzer import ContentAnalyzer
@@ -111,23 +111,27 @@ class NoteScheduler:
         notes_directory: Path,
         credential_manager: CredentialManager
     ) -> None:
-        """
-        Initialize the scheduler.
-        
-        Args:
-            config: Scheduling configuration.
-            notes_directory: Directory containing notes to process.
-            credential_manager: For accessing email credentials.
-        """
+        """Initialize note scheduler."""
         self.config = config
-        self.notes_directory = Path(notes_directory)
+        self.notes_directory = notes_directory
         self.credential_manager = credential_manager
+        self._current_job: Dict[str, Any] | None = None
+        self._job_history: List[Dict[str, Any]] = []
+        
+        # Ensure database exists
+        initialize_database(DATABASE_PATH)
+        
+        logger.info(
+            "Scheduler initialized",
+            extra={
+                'config': asdict(config),
+                'notes_directory': str(notes_directory)
+            }
+        )
         
         # Execution tracking
-        self.job_history: List[JobExecution] = []
         self.is_running: bool = False
         self.shutdown_requested: bool = False
-        self.current_job: Optional[JobExecution] = None
         
         # Initialize components
         content_analyzer = ContentAnalyzer()

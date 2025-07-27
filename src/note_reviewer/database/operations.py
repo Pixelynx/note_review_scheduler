@@ -13,7 +13,7 @@ from loguru import logger
 from .models import Note, create_tables_sql
 
 
-DATABASE_PATH: Final[Path] = Path("notes_scheduler.db")
+DATABASE_PATH: Final[Path] = Path("data/notes_tracker.db")
 
 
 class DatabaseError(Exception):
