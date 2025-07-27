@@ -69,7 +69,9 @@ def main() -> None:
             notes_directory=notes_directory,
             recipient_email=email_address,
             schedule_time="12:00",  # Default to noon
-            notes_per_email=5
+            notes_per_email=5,
+            email_format_type="bionic",  # Change to: "plain", "bionic", or "styled"
+            attach_files=True  # Set to False if you don't want file attachments
         )
         
         # Save credentials

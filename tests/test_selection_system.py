@@ -368,7 +368,7 @@ def test_content_analyzer() -> None:
         logger.success("Content analyzer tests passed!")
         
     except Exception as e:
-        logger.error(f"✗ Content analyzer test failed: {e}")
+        logger.error(f"FAILED: Content analyzer test failed: {e}")
         raise
     finally:
         # Cleanup
@@ -459,7 +459,7 @@ def test_selection_algorithm() -> None:
         logger.success("Selection algorithm tests passed!")
         
     except Exception as e:
-        logger.error(f"✗ Selection algorithm test failed: {e}")
+        logger.error(f"FAILED: Selection algorithm test failed: {e}")
         raise
     finally:
         # Cleanup
@@ -568,7 +568,7 @@ def test_email_formatter() -> None:
         logger.success("Email formatter tests passed!")
         
     except Exception as e:
-        logger.error(f"✗ Email formatter test failed: {e}")
+        logger.error(f"FAILED: Email formatter test failed: {e}")
         raise
     finally:
         # Cleanup test files
@@ -675,7 +675,7 @@ def test_integration() -> None:
         logger.info(f"- {final_text}")
         
     except Exception as e:
-        logger.error(f"✗ Integration test failed: {e}")
+        logger.error(f"FAILED: Integration test failed: {e}")
         raise
     finally:
         # Cleanup

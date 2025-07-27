@@ -166,8 +166,8 @@ class TemplateContext:
             <div class="note-header">
                 <h2 class="note-title">{note_data.get('file_name', 'Unknown')}</h2>
                 <div class="note-meta">
-                    <span>📅 Modified: {note_data.get('modified_date', 'Unknown')}</span>
-                    <span>📏 {note_data.get('file_size_formatted', 'Unknown')}</span>
+                    <span>Modified: {note_data.get('modified_date', 'Unknown')}</span>
+                    <span>Size: {note_data.get('file_size_formatted', 'Unknown')}</span>
                 </div>
             </div>
             <div class="note-content">{content}</div>

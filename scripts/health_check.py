@@ -214,14 +214,24 @@ def format_text_output(health_dict: Dict[str, Any]) -> str:
     lines.append("=" * 60)
     
     # System metrics
-    sys_metrics: Dict[str, Any] = health_dict.get('system_metrics', {})
+    sys_metrics = health_dict.get('system_metrics')
     lines.append("\nSYSTEM RESOURCES:")
-    lines.append(f"  CPU Usage:         {sys_metrics.get('cpu_percent', 0):.1f}%")
-    lines.append(f"  Memory Usage:      {sys_metrics.get('memory_percent', 0):.1f}%")
-    lines.append(f"  Disk Usage:        {sys_metrics.get('disk_usage_percent', 0):.1f}%")
-    lines.append(f"  Available Memory:  {sys_metrics.get('available_memory_gb', 0):.1f} GB")
-    lines.append(f"  Free Disk Space:   {sys_metrics.get('disk_free_gb', 0):.1f} GB")
-    lines.append(f"  System Uptime:     {sys_metrics.get('uptime_seconds', 0) / 3600:.1f} hours")
+    
+    # Handle both dict and dataclass formats
+    if sys_metrics is not None:
+        cpu_percent = getattr(sys_metrics, 'cpu_percent', sys_metrics.get('cpu_percent', 0))
+        memory_percent = getattr(sys_metrics, 'memory_percent', sys_metrics.get('memory_percent', 0))
+        disk_usage_percent = getattr(sys_metrics, 'disk_usage_percent', sys_metrics.get('disk_usage_percent', 0))
+        available_memory_gb = getattr(sys_metrics, 'available_memory_gb', sys_metrics.get('available_memory_gb', 0))
+        disk_free_gb = getattr(sys_metrics, 'disk_free_gb', sys_metrics.get('disk_free_gb', 0))
+        
+        lines.append(f"  CPU Usage:         {cpu_percent:.1f}%")
+        lines.append(f"  Memory Usage:      {memory_percent:.1f}%")
+        lines.append(f"  Disk Usage:        {disk_usage_percent:.1f}%")
+        lines.append(f"  Available Memory:  {available_memory_gb:.1f} GB")
+        lines.append(f"  Free Disk Space:   {disk_free_gb:.1f} GB")
+    else:
+        lines.append("  System metrics unavailable")
     
     # Database metrics
     db_metrics: Dict[str, Any] = health_dict.get('database_metrics', {})

@@ -1,0 +1,39 @@
+# React Context vs Redux: Key Differences
+## React Context
+
+* Built into React: No additional libraries needed
+* Simpler setup: Less boilerplate code
+* Best for: Smaller to medium applications, shared state that doesn't change frequently
+* Learning curve: Relatively easy to learn and implement
+* Updates: Can cause re-renders in components that don't need the updates
+
+## Redux
+
+* Separate library: Requires installation and integration
+* More structured: Uses actions, reducers, and a single store
+* Best for: Larger applications with complex state management needs
+* Learning curve: Steeper, with more concepts to understand
+* Updates: More efficient with selective re-rendering
+* Dev tools: Excellent debugging tools and time-travel debugging
+* Middleware: Robust ecosystem for handling side effects (Redux Thunk, Redux Saga)
+
+### Which Is Better For Your E-commerce Site?
+* For your Pink Friday Nails e-commerce project, Context is likely sufficient because:
+
+* Scale: It's a class project with defined scope (not an enterprise application)
+* Complexity: The state management needs are relatively straightforward
+* Learning curve: You're already learning React and Spring Boot, so simpler state management is beneficial
+* Feature set: Your core features (products, cart, authentication) don't require complex state interactions
+
+### Structuring Context to be React-like
+Context/
+├── VideoContext/
+│   ├── VideoContext.js (creates context)
+│   ├── VideoReducer.js (action types and reducer functions)
+│   ├── VideoActions.js (action creators)
+│   └── VideoProvider.js (provides context to app)
+├── CartContext/
+├── AuthContext/
+└── ProductContext/
+
+

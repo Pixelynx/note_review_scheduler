@@ -11,19 +11,18 @@ import os
 import signal
 import sys
 from pathlib import Path
-from typing import Any, Optional, Callable
+from typing import Any, Optional, Callable, List
+from datetime import datetime
 
 import typer
 from rich import print as rich_print
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from .database.operations import get_notes_never_sent, get_notes_not_sent_recently
+from .database.operations import get_notes_never_sent, get_notes_not_sent_recently, add_or_update_note, record_email_sent
 from .security.credentials import CredentialManager
 from .scanner.file_scanner import FileScanner
-from .selection.selection_algorithm import SelectionAlgorithm
-from .selection.content_analyzer import ContentAnalyzer
+from loguru import logger
 
 def get_password_cross_platform(prompt: str) -> str:
     """
@@ -198,6 +197,99 @@ def test_gmail_credentials_with_retry(gmail_username: str) -> tuple[str, str]:
             # Re-raise to be handled by setup function
             raise
 
+def suggest_notes_directories() -> List[Path]:
+    """Suggest common note directory locations."""
+    suggestions = [
+        Path.home() / "Documents" / "Notes" / "Study",
+        Path.home() / "notes", 
+        Path.home() / "Obsidian",
+        Path("./notes"),
+        Path("./docs")
+    ]
+    return [p for p in suggestions if p.exists()]
+
+
+def run_automatic_initial_scan(notes_path: Path, db_path: Path, show_progress: bool = True) -> bool:
+    """Run automatic initial scan with progress feedback.
+    
+    Args:
+        notes_path: Path to notes directory
+        db_path: Path to database
+        show_progress: Whether to show progress indicators
+        
+    Returns:
+        bool: True if scan completed successfully
+    """
+    try:
+        # Check recursively to match actual scan behavior
+        has_notes = any(
+            notes_path.rglob(f"*.{ext}") 
+            for ext in ["md", "txt", "org", "rst"]
+        )
+        
+        if not has_notes:
+            if show_progress:
+                rich_print("[yellow]No supported note files found in directory tree.[/yellow]")
+            return True  # Not an error, just no files to scan
+            
+        if show_progress:
+            rich_print("\n[yellow]Scanning notes directory...[/yellow]")
+        
+        # Initialize scanner with all features enabled
+        scanner = FileScanner(
+            extract_tags=True,
+            extract_links=True,
+            generate_summary=True
+        )
+        
+        # Run scan with recursive enabled by default
+        results, stats = scanner.scan_directory(notes_path, recursive=True)
+        
+        if show_progress:
+            # Display results table
+            table = Table(show_header=True, header_style="bold magenta")
+            table.add_column("Metric", style="cyan")
+            table.add_column("Value", style="green")
+            
+            table.add_row("Files Scanned", str(stats.scanned_files))
+            table.add_row("Success Rate", f"{stats.success_rate:.1%}")
+            table.add_row("Total Size", f"{stats.total_size_bytes / (1024*1024):.1f} MB")
+            table.add_row("Duration", f"{stats.scan_duration_seconds:.2f}s")
+            
+            console.print(table)
+        
+        # Update database with results
+        if results:
+            if show_progress:
+                rich_print("\n[yellow]Updating database...[/yellow]")
+            
+            for result in results:
+                if result.is_valid:
+                    try:
+                        add_or_update_note(
+                            file_path=result.file_path,
+                            content_hash=result.content_hash,
+                            file_size=result.file_size,
+                            created_at=result.created_at,
+                            modified_at=result.modified_at,
+                            db_path=db_path
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to add {result.file_path} to database: {e}")
+                        continue
+            
+            if show_progress:
+                rich_print("[green]Database updated successfully![/green]")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Initial scan failed: {e}")
+        if show_progress:
+            rich_print(f"[red]Initial scan failed: {e}[/red]")
+        return False
+
+
 # Initialize CLI app
 app = typer.Typer(
     name="note-scheduler",
@@ -327,9 +419,31 @@ def setup(
         
         # Get notes directory with validation
         rich_print("\n[bold]Notes Configuration[/bold]")
-        notes_dir = typer.prompt("Path to your notes directory")
-        notes_path = Path(notes_dir).expanduser().resolve()
-        
+
+        # Check for common note directories
+        suggested_dirs = suggest_notes_directories()
+        if suggested_dirs:
+            rich_print("[cyan]Found existing note directories:[/cyan]")
+            for i, dir_path in enumerate(suggested_dirs, 1):
+                rich_print(f"  {i}. {dir_path}")
+            
+            if typer.confirm("\nUse one of these directories?"):
+                while True:
+                    try:
+                        choice = typer.prompt("Enter directory number", type=int)
+                        if 1 <= choice <= len(suggested_dirs):
+                            notes_path = suggested_dirs[choice - 1]
+                            break
+                        rich_print("[red]Invalid choice. Please enter a valid number.[/red]")
+                    except ValueError:
+                        rich_print("[red]Please enter a valid number.[/red]")
+            else:
+                notes_dir = typer.prompt("Path to your notes directory")
+                notes_path = Path(notes_dir).expanduser().resolve()
+        else:
+            notes_dir = typer.prompt("Path to your notes directory")
+            notes_path = Path(notes_dir).expanduser().resolve()
+
         # Validate/create notes directory with retry loop
         while not notes_path.exists():
             if typer.confirm(f"Directory {notes_path} doesn't exist. Create it?"):
@@ -344,7 +458,7 @@ def setup(
             else:
                 notes_dir = typer.prompt("Please enter a different path or existing directory")
                 notes_path = Path(notes_dir).expanduser().resolve()
-        
+
         # Get schedule configuration with validation
         rich_print("\n[bold]Schedule Configuration[/bold]")
         schedule_time = get_validated_input(
@@ -438,7 +552,7 @@ def setup(
         
         manager.save_credentials(email_creds, updated_config)
         
-        # Initialize database
+        # Initialize database and run automatic scan
         rich_print("\n[yellow]Initializing database...[/yellow]")
         from .database.operations import initialize_database
         
@@ -446,31 +560,12 @@ def setup(
         db_path.parent.mkdir(parents=True, exist_ok=True)
         initialize_database(db_path)
         rich_print("[green]Database initialized successfully![/green]")
-        
-        # Run initial scan if notes exist
-        if any(notes_path.glob("*.md")):
-            if typer.confirm("\nRun initial notes scan?"):
-                rich_print("\n[yellow]Scanning notes directory...[/yellow]")
-                
-                scanner = FileScanner(extract_tags=True, extract_links=True)
-                results, stats = scanner.scan_directory(notes_path, recursive=True)
-                
-                # Update database with scan results
-                if results:
-                    from .database.operations import add_or_update_note
-                    for result in results:
-                        if result.is_valid:
-                            add_or_update_note(
-                                file_path=result.file_path,
-                                content_hash=result.content_hash,
-                                file_size=result.file_size,
-                                created_at=result.created_at,
-                                modified_at=result.modified_at,
-                                db_path=db_path
-                            )
-                
-                rich_print(f"[green]Scanned {stats.scanned_files} notes successfully![/green]")
-        
+
+        # Run automatic initial scan
+        scan_success = run_automatic_initial_scan(notes_path, db_path)
+        if not scan_success:
+            rich_print("[yellow]Initial scan failed - you can run 'notes scan' later to retry[/yellow]")
+
         # Ask if user wants to start the scheduler
         rich_print("\n[bold]Scheduler Startup[/bold]")
         if typer.confirm("Do you want to start the note scheduler now?"):
@@ -762,6 +857,7 @@ def scan(
     directory: Optional[str] = typer.Argument(None, help="Directory to scan (default: configured notes directory)"),
     recursive: bool = typer.Option(True, "--recursive/--no-recursive", "-r", help="Scan subdirectories"),
     update_db: bool = typer.Option(True, "--update-db/--no-update-db", help="Update database with scan results"),
+    debug: bool = typer.Option(False, "--debug", help="Enable debug mode for detailed error information")
 ) -> None:
     """Scan notes directory for files."""
     rich_print("\n[bold blue]Scanning Notes[/bold blue]")
@@ -781,20 +877,18 @@ def scan(
     scanner = FileScanner(
         extract_tags=True,
         extract_links=True,
-        generate_summary=True
+        generate_summary=True,
+        debug=debug
     )
     
     try:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console
-        ) as progress:
-            task = progress.add_task("Scanning files...", total=None)
-            
-            results, stats = scanner.scan_directory(scan_dir, recursive=recursive)
-            
-            progress.update(task, description="Scan complete")
+        # Simple progress message
+        rich_print("[yellow]Scanning files...[/yellow]")
+        
+        # Run scan
+        results, stats = scanner.scan_directory(scan_dir, recursive=recursive)
+        
+        rich_print("[green]Scan complete![/green]")
         
         # Display results
         table = Table(title=f"Scan Results: {scan_dir}", show_header=True, header_style="bold magenta")
@@ -816,20 +910,47 @@ def scan(
             for format_name, count in stats.formats_found.items():
                 rich_print(f"  - {format_name}: {count} files")
         
+        # In debug mode, show any errors encountered
+        if debug and stats.error_files > 0:
+            rich_print("\n[bold red]Files with Errors:[/bold red]")
+            for result in results:
+                if not result.is_valid:
+                    rich_print(f"  - {result.file_path}: {result.error_message}")
+        
         # Update database if requested
         if update_db and results:
             rich_print(f"\n[yellow]Updating database with {len(results)} scan results...[/yellow]")
-            # Implementation would add/update notes in database
+            
+            for result in results:
+                if result.is_valid:
+                    try:
+                        add_or_update_note(
+                            file_path=result.file_path,
+                            content_hash=result.content_hash,
+                            file_size=result.file_size,
+                            created_at=result.created_at,
+                            modified_at=result.modified_at,
+                            db_path=Path(app_config.database_path)
+                        )
+                    except Exception as e:
+                        if debug:
+                            rich_print(f"[red]Failed to add {result.file_path} to database: {e}[/red]")
+                        continue
+            
             rich_print("[green]Database updated successfully.[/green]")
             
     except Exception as e:
         rich_print(f"[red]Scan failed: {e}[/red]")
+        if debug:
+            import traceback
+            rich_print("\n[red]Debug traceback:[/red]")
+            rich_print(traceback.format_exc())
         raise typer.Exit(1)
 
 
 @app.command()
 def send(
-    max_notes: int = typer.Option(3, "--max-notes", "-n", help="Maximum notes to send"),
+    max_notes: Optional[int] = typer.Option(None, "--max-notes", "-n", help="Maximum notes to send (defaults to configured value)"),
     force: bool = typer.Option(False, "--force", "-f", help="Send even if sent recently"),
     preview: bool = typer.Option(False, "--preview", "-p", help="Preview email without sending"),
 ) -> None:
@@ -838,7 +959,11 @@ def send(
     
     # Get configuration
     credential_manager = get_credential_manager()
-    _, app_config = credential_manager.load_credentials()
+    email_creds, app_config = credential_manager.load_credentials()
+
+    # Use configured max_notes if not specified
+    if max_notes is None:
+        max_notes = app_config.notes_per_email
     
     try:
         # Get notes to send
@@ -871,17 +996,71 @@ def send(
             if not typer.confirm("\nSend email with these notes?"):
                 return
         
-        # Initialize selection and email systems
-        content_analyzer = ContentAnalyzer()
-        SelectionAlgorithm(content_analyzer)  # Would be used in full implementation
+        # Initialize components
+        from .selection.content_analyzer import ContentAnalyzer
+        from .selection.selection_algorithm import SelectionAlgorithm, SelectionCriteria
+        from .selection.email_formatter import EmailFormatter
+        from .email.service import EmailService, EmailConfig
+        from .selection.text_formatter import EmailFormatType
         
-        # Note: EmailService expects EmailConfig, not EmailCredentials
-        # This would need proper config conversion in full implementation
+        # Set up components
+        content_analyzer = ContentAnalyzer()
+        selection_algorithm = SelectionAlgorithm(content_analyzer)
+        email_formatter = EmailFormatter(format_type=EmailFormatType.from_string(app_config.email_format_type))
+        
+        # Create email service
+        email_config = EmailConfig(
+            smtp_server=email_creds.smtp_server,
+            smtp_port=email_creds.smtp_port,
+            username=email_creds.username,
+            password=email_creds.password,
+            from_email=email_creds.username,
+            from_name=email_creds.from_name
+        )
+        email_service = EmailService(email_config)
+        
+        # Score and select notes
+        criteria = SelectionCriteria(max_notes=max_notes)
+        scored_notes = selection_algorithm.select_notes(notes, criteria)
+        
         rich_print("\n[yellow]Generating email content...[/yellow]")
+        
+        # Format email content
+        email_content = email_formatter.format_email(scored_notes)
         
         if preview:
             rich_print("[blue]Email preview generated (not sent)[/blue]")
+            rich_print("\n[bold]Subject:[/bold]")
+            rich_print(email_content.subject)
+            rich_print("\n[bold]Plain Text Content:[/bold]")
+            rich_print(email_content.plain_text_content)
         else:
+            # Send email
+            email_service.send_notes_email(
+                to_email=app_config.recipient_email,
+                subject=email_content.subject,
+                html_content=email_content.html_content,
+                text_content=email_content.plain_text_content,
+                notes=notes,
+                attach_files=True,
+                embed_in_body=True,
+                formatter=email_formatter.text_formatter
+            )
+            
+            # Record successful send
+            for note in notes:
+                if note.id is not None:  # Add null check
+                    record_email_sent(
+                        note_id=note.id,
+                        sent_at=datetime.now(),
+                        email_subject=email_content.subject,
+                        notes_count_in_email=len(notes),
+                        db_path=db_path
+                    )
+                else:
+                    logger.error(f"Cannot record email sent: Note has no ID: {note.file_path}")
+                    rich_print(f"[yellow]Warning: Could not record send history for {Path(note.file_path).name}[/yellow]")
+            
             rich_print("[green]Email sent successfully![/green]")
             
     except Exception as e:

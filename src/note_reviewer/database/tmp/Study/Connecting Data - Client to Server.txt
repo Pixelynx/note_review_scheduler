@@ -1,0 +1,18 @@
+Connecting Data from client side and sending to server
+
+Created an API Service:
+Created a new file client/src/utils/api.ts with functions to interact with the backend API for resume operations.
+
+Enhanced the PreviewResume Component:
+Completely redesigned the PreviewResume.tsx component to display all resume data in a structured and visually appealing format.
+
+Updated the ResumeForm Component:
+Added state for tracking submission status (loading, success, error)
+Updated the submitResume function to use our new API service
+Added functionality to retrieve and update existing resumes
+Added loading indicators and success/error notifications
+
+Updated the Backend:
+Modified the resume model to match our frontend data structure
+Updated the resume controller to handle our new data structure
+Added proper error handling and response formatting

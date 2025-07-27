@@ -1,0 +1,105 @@
+Steps of ML Project
+- Collect Data
+- Train Model
+ - Iterate many times until good enough
+- Deploy Model
+ - Get data back
+ - Maintain/update model
+
+Steps of DS Project
+- Collect Data
+- Analyze Data
+ - Iterate many times to get good insights
+- Suggest hypothesis/actions
+ - Deploy changes
+ - Reanalyze new data periodically
+
+Ex: DS can be used to optimize a factory line to determine best conditions during manufacturing process to produce merchaindise at a higher quality
+Ex: ML can be used to automate visual inspections of a manufacturing line
+
+
+Choosing AI Project
+- Think about automating tasks rather than jobs
+- What are the main drivers of business value
+- What are the main pain points of your business
+
+
+Technical Diligence
+- Can AI system meet desired performance
+- How much data is needed
+- Engineering timeline
+Business Diligence
+- Lower costs
+- Increase revenue
+- Launch Product or business
+Ethical Diligence
+
+
+Build vs Buy
+- ML can be in-house or outsourced
+- DS projects are more commonly in-house
+- Some thing will be industry standard--avoid building
+
+
+AI Terms & Data
+- Training Set (learning)
+- Test Set
+* Some AI teams may ask for second test set (Development/validation set)
+
+
+Pitfall: Expecting 100% Accuracy
+- Limitations of ML
+- Insufficient Data
+- Mislabled Data
+- Ambiguous Labels
+
+
+Building AI in your Company
+Case Study: Smart Speaker
+- Trigger/Wake word detection -- Audio -> "Hey <DEVICE>?" (0/10)
+- Speech recognition -- Audio "Tell me a joke."
+- Intent recognition -- "Tell me a <JOKE>."
+- Execute intent
+
+AI Pipeline: When you have multiple ML components which process data concurrently
+
+Case Study: Self-Driving Cars
+- Image/Radar/Lidar -> Car/Pedestrian detection
+- Motion Planning => Steer/Accelerate/Brake
+
+Car Detection/Pedestrian Detection:
+- Supervised learning: Input relevant pictures and test output detected cars
+
+Motion Planning 
+- Detect & output driving path & speed of road; Detect objects to maneuver around; Trajectory prediction
+
+AI Transformation Playbook
+- Exe pilot projects to gain momentum 
+- Build in-house AI team
+- Provide broad Ai training
+- Develop AI strategy
+- Develop internal & external communication
+
+Develop AI Strategy
+- Leverage Ai to create an advantage specific to your industry sector
+ * after you understand how AI can be used to benefit your company *
+- Design strategy aligned w. the "Virtuous Cycle of AI"
+- Consider creating a data strategy
+ - strategic data acquisition 
+- Unified data warehouse
+
+Create network effects and platform advantages
+- In industries with "winner take all" dynamics, AI can be an accelerator
+
+
+AI Pitfalls to Avoid
+- Don't expect Ai to solve everything 
+- Don't hire 2-3 ML engineers and count solely on them to come up with use cases
+- Don't expect AI project to work first time
+- Don't expect traditional planning processes to apply w.o changes
+- Don't think you need superstar engineers before you can do anything
+
+
+Limitations of AI
+- Biased AI through biased data
+- Adversarial attacks on AI
