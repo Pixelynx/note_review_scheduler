@@ -125,7 +125,36 @@ pip install -e .
 
 # Run the interactive setup wizard
 notes setup
+
+# Important: Run initial scan to populate database
+notes scan
 ```
+
+### Notes Directory Configuration
+
+The system supports several ways to configure your notes directory:
+
+1. **Default Locations** (auto-discovered):
+   - `notes/` in repository root
+   - `docs/` in repository root
+   - `wiki/` in repository root
+   - `content/` in repository root
+   - Custom directory specified during setup
+
+2. **GitHub Actions Configuration**:
+   If using GitHub Actions for automated note review:
+   - Set `NOTES_DIRECTORY` secret in repository settings
+   - Path should be relative to repository root
+   - Example: `src/note_reviewer/database/tmp/Study`
+
+3. **Manual Configuration**:
+   ```bash
+   # View current configuration
+   notes config --show
+
+   # Update notes directory
+   notes setup --force
+   ```
 
 ### Gmail Setup
 
@@ -434,16 +463,17 @@ The setup wizard validates all inputs with retry loops:
 | Component | Status | Description |
 |-----------|--------|-------------|
 | Interactive Setup | Complete | Full wizard with validation and testing |
-| File Scanner | Complete | Multi-format parsing with metadata extraction |
+| File Scanner | Complete | Multi-format parsing with auto-discovery and configurable directories |
 | Database Operations | Complete | SQLite with proper schema and send tracking |
 | Email System | Complete | Gmail SMTP with attachments and formatting |
 | Security | Complete | AES-256 encryption and secure credential storage |
 | Selection Algorithm | Complete | Intelligent scoring and diversity selection |
 | Flexible Formatting | Complete | PLAIN, BIONIC, STYLED with extensible architecture |
-| Scheduler | Complete | Multiple schedule types with graceful shutdown |
+| Scheduler | Complete | Multiple schedule types with GitHub Actions support |
 | CLI Interface | Complete | All commands implemented with proper error handling |
 | Email Templates | Complete | Mobile-responsive HTML and text templates |
 | Monitoring | Complete | Health checks, metrics, and structured logging |
+| GitHub Actions | Complete | Automated scheduling with configurable directory support |
 
 ### Advanced Configuration
 
@@ -452,11 +482,17 @@ The setup wizard validates all inputs with retry loops:
 MASTER_PASSWORD=your_secure_password
 EMAIL_ADDRESS=your_email@gmail.com
 EMAIL_APP_PASSWORD="xxxx xxxx xxxx xxxx"
-NOTES_DIRECTORY=/path/to/notes
+NOTES_DIRECTORY=/path/to/notes  # Local development
 RECIPIENT_EMAIL=recipient@email.com
 SCHEDULE_TIME=09:00
 NOTES_PER_EMAIL=3
 EMAIL_FORMAT_TYPE=bionic
+
+# For GitHub Actions, set these as repository secrets:
+# MASTER_PASSWORD
+# EMAIL_ADDRESS
+# EMAIL_APP_PASSWORD
+# NOTES_DIRECTORY (if using custom directory)
 ```
 
 ## Troubleshooting
@@ -471,6 +507,9 @@ notes setup
 # Or reset and reconfigure
 notes reset
 notes setup
+
+# Important: Always run scan after setup
+notes scan
 ```
 
 **Gmail Authentication Failed**
@@ -511,14 +550,41 @@ notes stats
 
 **Notes Not Found**
 ```bash
-# Scan notes directory
+# Check if notes directory is configured correctly
+notes config --show
+
+# Run initial scan to populate database
 notes scan
 
-# Check directory configuration
-notes config --show
+# For GitHub Actions:
+# 1. Check NOTES_DIRECTORY secret is set correctly
+# 2. Verify directory exists in repository
+# 3. Check workflow logs for scanning results
 
 # Verify directory permissions and file formats (.md, .txt, .org)
 ```
+
+**GitHub Actions Workflow Issues**
+- Ensure `NOTES_DIRECTORY` secret is set if using custom directory
+- Default auto-discovery looks in standard locations (notes/, docs/, etc.)
+- Check workflow logs for scanning results and directory detection
+- Manual scan can be triggered with workflow_dispatch
+
+**Scheduler Not Finding Notes**
+1. Verify database is populated:
+   ```bash
+   # Run scan to populate database
+   notes scan
+   ```
+2. Check notes directory configuration:
+   ```bash
+   # View current settings
+   notes config --show
+   ```
+3. For GitHub Actions:
+   - Set `NOTES_DIRECTORY` secret if notes are in custom location
+   - Check workflow logs for scanning results
+   - Verify notes exist in specified directory
 
 ### Terminal Compatibility
 
