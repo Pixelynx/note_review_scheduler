@@ -20,6 +20,15 @@
     - Fixed database update implementation
     - Corrected import paths for database operations
 
+- **Initial Scan System**: Automatic scanning during setup
+  - `src/note_reviewer/cli.py`: Improved initial scan implementation
+    - Made initial scan automatic and mandatory during setup
+    - Added recursive file discovery for all supported note types (.md, .txt, .org, .rst)
+    - Implemented smart default note directory detection
+    - Enhanced progress feedback with clear status tables
+    - Added graceful error handling for missing or empty directories
+    - Fixed Windows compatibility issues with directory paths
+
 - **Scheduler Module Improvements**: Fixed scheduler module import and type checking issues
   - `src/note_reviewer/main.py`: Updated scheduler imports to use package imports
     - Changed from direct module import to package-level import
