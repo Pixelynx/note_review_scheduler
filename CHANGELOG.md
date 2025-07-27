@@ -3,6 +3,19 @@
 ### [Unreleased]
 
 ### [2025-07-27]
+#### Added
+- **GitHub Actions Scanning Integration**: Enhanced scanning system for CI/CD environments
+  - `scripts/setup_github_scan.py`: New script for automated scanning in GitHub Actions
+    - Intelligent repository structure detection with support for multiple note directories
+    - Silent operation mode with GitHub-specific output formatting and annotations
+    - Comprehensive artifact generation with JSON reports and workflow outputs
+    - Secure credential handling from GitHub secrets with type-safe implementation
+    - Aggregated statistics for multi-directory scans with proper error tracking
+    - Enhanced error handling with GitHub-specific annotations and grouping
+    - Proper exit codes and environment variable exports for workflow control
+    - Type-safe Path handling with proper string conversions
+    - Modular design with separate functions for credentials, scanning, and reporting
+
 #### Fixed
 - **File Scanner System**: Enhanced scanner with robust character encoding and error handling
   - `src/note_reviewer/scanner/file_scanner.py`: Improved text processing and logging
