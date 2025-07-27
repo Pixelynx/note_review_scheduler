@@ -76,8 +76,7 @@ def discover_repository_notes(repo_root: Path) -> List[Path]:
         repo_root / "notes",
         repo_root / "docs", 
         repo_root / "wiki",
-        repo_root / "content",
-        repo_root  # Root level notes
+        repo_root / "content"
     ]
     
     found_dirs = []
@@ -253,8 +252,18 @@ def setup_github_scanning(
         
         # 2. Discover repository structure  
         if notes_dir:
-            repo_notes_dirs = [Path(notes_dir)]
+            notes_path = Path(notes_dir)
+            if not notes_path.exists():
+                logger.error(f"Configured notes directory does not exist: {notes_path}")
+                if is_github_actions():
+                    print(f"::error::Configured notes directory does not exist: {notes_path}")
+                return False
+            repo_notes_dirs = [notes_path]
+            logger.info(f"Using configured notes directory: {notes_path}")
         else:
+            logger.warning("No notes directory configured, attempting auto-discovery")
+            if is_github_actions():
+                print("::warning::No notes directory configured, attempting auto-discovery")
             repo_notes_dirs = discover_repository_notes(Path('.'))
             
         if not repo_notes_dirs:
@@ -279,7 +288,7 @@ def setup_github_scanning(
             "scan_duration_seconds": 0.0
         }
         
-        for notes_directory in repo_notes_dirs:  # ✅ Different variable name
+        for notes_directory in repo_notes_dirs:
             success, stats = run_with_github_formatting(notes_directory, database_path, scanner)
             if success:
                 # Aggregate statistics
