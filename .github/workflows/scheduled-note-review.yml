@@ -4,7 +4,7 @@ on:
   schedule:
     # Run daily at 5:00 PM UTC (1:00 PM EDT / 12:00 PM EST)
     # To change for your timezone, see README.md#github-actions-configuration
-    - cron: '0 17 * * *'
+    - cron: '40 19 * * *'
   
   # Allow manual triggering
   workflow_dispatch:
