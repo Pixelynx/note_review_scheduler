@@ -2,6 +2,23 @@
 
 ### [Unreleased]
 
+### [2025-07-27]
+#### Fixed
+- **GitHub Actions Workflow**: Enhanced artifact handling for database backups
+  - `.github/workflows/scheduled-note-review.yml`: Improved artifact upload configuration
+    - Added `if-no-files-found: warn` to handle expected missing backups gracefully
+    - Configured compression level and overwrite settings for better artifact management
+    - Prevents misleading workflow failures when database hasn't been created
+    - Better visibility of backup status through explicit warning configuration
+
+- **Health Check System**: Fixed system metrics reporting in health check output
+  - `scripts/health_check.py`: Enhanced SystemMetrics handling in text output
+    - Added proper dataclass support for system metrics reporting
+    - Implemented type-safe attribute access using getattr
+    - Fixed incorrect dictionary access that caused attribute errors
+    - Removed unsupported uptime metric to prevent errors
+    - Maintains backward compatibility with dictionary-format metrics
+
 ### [2025-07-25]
 #### Fixed
 - **Database Backup System**: Enhanced backup script with graceful handling of missing databases

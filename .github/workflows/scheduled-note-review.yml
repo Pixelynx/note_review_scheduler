@@ -104,6 +104,9 @@ jobs:
         name: database-backup
         path: data/backups/
         retention-days: 90
+        if-no-files-found: warn
+        compression-level: 6
+        overwrite: false
 
     - name: Notify on failure
       if: failure()
