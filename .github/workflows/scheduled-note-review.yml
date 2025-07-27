@@ -65,7 +65,7 @@ jobs:
         NOTES_DIRECTORY: ${{ secrets.NOTES_DIRECTORY }}
       run: |
         python scripts/setup_github_credentials.py
-        if [ ! -f "config/credentials.json" ]; then
+        if [ ! -f "config/encrypted_config.json" ]; then
           echo "::error::Credentials file was not created"
           exit 1
         fi
@@ -90,7 +90,7 @@ jobs:
         NOTES_DIRECTORY: ${{ secrets.NOTES_DIRECTORY }}
       run: |
         # Verify credentials exist
-        if [ ! -f "config/credentials.json" ]; then
+        if [ ! -f "config/encrypted_config.json" ]; then
           echo "::error::Credentials file not found. Ensure setup completed successfully."
           exit 1
         fi
