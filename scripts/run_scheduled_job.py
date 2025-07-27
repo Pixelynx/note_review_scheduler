@@ -89,7 +89,8 @@ def main() -> None:
             max_notes_per_email=args.max_notes,
             min_days_between_sends=0 if args.force_send else 7,
             max_retries=2,  # Reduce retries for GitHub Actions
-            retry_delay_seconds=60  # Shorter delay for GitHub Actions
+            retry_delay_seconds=60,  # Shorter delay for GitHub Actions
+            time_of_day=app_config.schedule_time  # Use time from app config
         )
         
         # Initialize scheduler

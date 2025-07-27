@@ -125,6 +125,12 @@ def set_github_outputs(stats: Dict[str, Any]) -> None:
     if not is_github_actions():
         return
         
+    # Get environment file path
+    github_env_file = os.getenv('GITHUB_ENV')
+    if not github_env_file:
+        logger.warning("GITHUB_ENV not set, cannot write outputs")
+        return
+        
     # Set outputs that other workflow steps can use
     outputs = {
         'scan-status': 'success' if stats.get('error_files', 0) == 0 else 'warning',
@@ -133,15 +139,14 @@ def set_github_outputs(stats: Dict[str, Any]) -> None:
         'database-updates': str(stats.get('database_updates', 0))
     }
     
-    for key, value in outputs.items():
-        print(f"::set-output name={key}::{value}")
-        
-    # Set environment variables for later steps
-    github_env_file = os.getenv('GITHUB_ENV')
-    if github_env_file:
-        with open(github_env_file, 'a') as f:
-            for key, value in outputs.items():
-                f.write(f"SCAN_{key.upper().replace('-', '_')}={value}\n")
+    # Write to GITHUB_ENV file
+    with open(github_env_file, 'a') as f:
+        for key, value in outputs.items():
+            # Set both environment variables and outputs
+            output_key = f"SCAN_{key.upper().replace('-', '_')}"
+            f.write(f"{output_key}={value}\n")
+            # For GitHub Steps outputs
+            f.write(f"output_{key}={value}\n")
 
 
 def run_with_github_formatting(
